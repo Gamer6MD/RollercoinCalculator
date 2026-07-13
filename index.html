@@ -123,58 +123,65 @@
         };
 
         const parseMarketPaste = (text) => {
-            // Separăm textul în blocuri bazându-ne pe spațiile goale dintre minere
-            const blocks = text.trim().split(/\n\s*\n/);
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l !== '');
             const parsedMiners = [];
+            let currentMiner = null;
 
-            blocks.forEach(block => {
-                const lines = block.split('\n').map(l => l.trim()).filter(l => l);
-                // Un bloc valid din market are de obicei minim 4 linii
-                if (lines.length < 4) return;
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
 
-                const name = lines[0];
-                const powerBonusLine = lines[1];
-                let power = 0;
-                let bonus = 0;
-
-                // Extragem puterea: Ex. "1.188  Eh/s" sau "770.000  Ph/s"
-                const powerMatch = powerBonusLine.match(/([\d.,]+)\s*(Gh\/s|Th\/s|Ph\/s|Eh\/s)/i);
+                // Căutăm linia cu Putere și Bonus (ex: "578.000 Ph/s | 65%")
+                const powerMatch = line.match(/([\d.,]+)\s*(Gh\/s|Th\/s|Ph\/s|Eh\/s)/i);
+                
                 if (powerMatch) {
-                    let pVal = parseFloat(powerMatch[1].replace(/,/g, ''));
-                    let unit = powerMatch[2].toLowerCase();
-                    if (unit === 'gh/s') power = pVal;
-                    else if (unit === 'th/s') power = pVal * 1000;
-                    else if (unit === 'ph/s') power = pVal * 1000000;
-                    else if (unit === 'eh/s') power = pVal * 1000000000;
-                }
-
-                // Extragem bonusul: Ex. "| 33%"
-                const bonusMatch = powerBonusLine.match(/\|\s*([\d.,]+)\s*%/);
-                if (bonusMatch) {
-                    bonus = parseFloat(bonusMatch[1].replace(/,/g, ''));
-                }
-
-                // Extragem prețul: Căutăm linia cu "RLT"
-                let price = 0;
-                const priceLine = lines.find((l, idx) => idx > 1 && l.toLowerCase().includes('rlt'));
-                if (priceLine) {
-                    const priceMatch = priceLine.match(/([\d.,]+)\s*rlt/i);
-                    if (priceMatch) {
-                        price = parseFloat(priceMatch[1].replace(/,/g, ''));
+                    // Numele minerului este de obicei pe linia imediat superioară
+                    let name = i > 0 ? lines[i-1] : "Miner Necunoscut";
+                    
+                    // Evităm cazurile în care copierea a sărit numele și a luat cuvinte irelevante
+                    if (name.toLowerCase().startsWith('from') || name.toLowerCase().startsWith('quantity')) {
+                        name = "Miner fără nume " + (parsedMiners.length + 1);
                     }
-                }
 
-                // Dacă am extras tot ce e necesar, îl considerăm miner valid
-                if (name && power > 0 && price > 0) {
-                    parsedMiners.push({
-                        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                    // Extragem puterea
+                    let power = parseFloat(powerMatch[1].replace(/,/g, ''));
+                    let unit = powerMatch[2].toLowerCase();
+                    if (unit === 'gh/s') power *= 1;
+                    else if (unit === 'th/s') power *= 1000;
+                    else if (unit === 'ph/s') power *= 1000000;
+                    else if (unit === 'eh/s') power *= 1000000000;
+
+                    // Extragem bonusul
+                    let bonus = 0;
+                    const bonusMatch = line.match(/\|\s*([\d.,]+)\s*%/);
+                    if (bonusMatch) {
+                        bonus = parseFloat(bonusMatch[1].replace(/,/g, ''));
+                    }
+
+                    currentMiner = {
                         name,
                         power,
                         bonus,
-                        price
-                    });
+                        price: 0 // Urmează să fie completat
+                    };
                 }
-            });
+
+                // Dacă avem un miner în așteptare și găsim linia cu prețul (RLT)
+                if (currentMiner && line.toLowerCase().includes('rlt')) {
+                    const priceMatch = line.match(/([\d.,]+)\s*rlt/i);
+                    if (priceMatch) {
+                        currentMiner.price = parseFloat(priceMatch[1].replace(/,/g, ''));
+                        
+                        if (currentMiner.price > 0) {
+                            parsedMiners.push({
+                                id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                                ...currentMiner
+                            });
+                        }
+                        // Resetăm starea pentru a căuta următorul miner din listă
+                        currentMiner = null;
+                    }
+                }
+            }
 
             return parsedMiners;
         };
