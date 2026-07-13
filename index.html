@@ -78,6 +78,11 @@
         .table-row-hover:hover {
             background-color: rgba(59, 130, 246, 0.05);
         }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
     </style>
 </head>
 <body>
@@ -215,6 +220,8 @@
             // Sorting state
             const [sortConfig, setSortConfig] = useState({ key: 'costPerPh', direction: 'asc' });
 
+            const [showClearModal, setShowClearModal] = useState(false);
+
             // Persist data when changed
             useEffect(() => {
                 localStorage.setItem('rc_miners', JSON.stringify(miners));
@@ -256,6 +263,11 @@
 
             const handleDelete = (id) => {
                 setMiners(prev => prev.filter(m => m.id !== id));
+            };
+
+            const handleClearAll = () => {
+                setMiners([]); // Goleste lista (implicit va sterge si din memoria locala)
+                setShowClearModal(false); // Inchide fereastra
             };
 
             const handleImport = (e) => {
@@ -408,6 +420,17 @@
                             {}
                             <div className="lg:col-span-3">
                                 <div className="glass-panel rounded-xl shadow-xl overflow-hidden flex flex-col h-full">
+                                    <div className="p-4 border-b border-white/10 flex justify-between items-center bg-rc-panel/30">
+                                        <h2 className="text-lg font-semibold text-white"><i className="fa-solid fa-server mr-2"></i>Lista Minere</h2>
+                                        {miners.length > 0 && (
+                                            <button 
+                                                onClick={() => setShowClearModal(true)}
+                                                className="text-xs bg-red-500/20 hover:bg-red-500/30 text-red-400 py-1.5 px-3 rounded-lg transition-colors flex items-center border border-red-500/30"
+                                            >
+                                                <i className="fa-solid fa-trash-can mr-1.5"></i> Șterge Tot
+                                            </button>
+                                        )}
+                                    </div>
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-left border-collapse">
                                             <thead>
@@ -475,6 +498,35 @@
 
                         </div>
                     </div>
+                    
+                    {/* Fereastra modala de confirmare */}
+                    {showClearModal && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                            <div className="glass-panel border border-white/10 rounded-xl shadow-2xl max-w-sm w-full p-6 animate-[fadeIn_0.15s_ease-out]">
+                                <div className="flex items-center text-red-400 mb-4">
+                                    <i className="fa-solid fa-triangle-exclamation text-2xl mr-3"></i>
+                                    <h3 className="text-xl font-bold text-white">Atenție!</h3>
+                                </div>
+                                <p className="text-rc-muted text-sm mb-6 leading-relaxed">
+                                    Ești sigur că vrei să ștergi toate minerele din listă? Această acțiune nu poate fi anulată.
+                                </p>
+                                <div className="flex justify-end space-x-3">
+                                    <button 
+                                        onClick={() => setShowClearModal(false)}
+                                        className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-white/10 hover:bg-white/20 transition-colors"
+                                    >
+                                        Anulează
+                                    </button>
+                                    <button 
+                                        onClick={handleClearAll}
+                                        className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-red-500 hover:bg-red-600 transition-colors shadow-lg shadow-red-500/20"
+                                    >
+                                        Da, Șterge Tot
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         };
