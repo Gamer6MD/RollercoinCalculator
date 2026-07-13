@@ -202,7 +202,6 @@
                 price: ''
             });
 
-            const [activeTab, setActiveTab] = useState('manual');
             const [importText, setImportText] = useState('');
             const [importMessage, setImportMessage] = useState({ text: '', type: '' });
 
@@ -317,88 +316,76 @@
                             
                             {}
                             <div className="lg:col-span-1 space-y-4">
+                                
+                                {/* Formular Manual */}
                                 <div className="glass-panel p-6 rounded-xl shadow-xl">
-                                    <div className="flex space-x-2 mb-6 bg-rc-dark/50 p-1 rounded-lg">
-                                        <button 
-                                            onClick={() => setActiveTab('manual')}
-                                            className={`flex-1 text-xs font-medium py-2 rounded-md transition-all ${activeTab === 'manual' ? 'bg-rc-panel shadow text-white' : 'text-rc-muted hover:text-white'}`}
-                                        >
-                                            <i className="fa-solid fa-pen inline mr-1"></i>
-                                            Manual
+                                    <h2 className="text-lg font-semibold text-white mb-4"><i className="fa-solid fa-pen mr-2"></i>Adăugare Manuală</h2>
+                                    <form onSubmit={handleAddMiner} className="space-y-4">
+                                        <div>
+                                            <label className="block text-xs font-medium text-rc-muted mb-1">Nume Miner</label>
+                                            <input type="text" name="name" value={formData.name} onChange={handleInputChange} className="input-field w-full rounded-lg px-3 py-2 text-sm" placeholder="ex: El Monstro" required />
+                                        </div>
+                                        
+                                        <div className="flex space-x-2">
+                                            <div className="flex-1">
+                                                <label className="block text-xs font-medium text-rc-muted mb-1">Putere</label>
+                                                <input type="number" step="any" name="power" value={formData.power} onChange={handleInputChange} className="input-field w-full rounded-lg px-3 py-2 text-sm" placeholder="ex: 5.5" required />
+                                            </div>
+                                            <div className="w-24">
+                                                <label className="block text-xs font-medium text-rc-muted mb-1">Unitate</label>
+                                                <select name="powerUnit" value={formData.powerUnit} onChange={handleInputChange} className="input-field w-full rounded-lg px-3 py-2 text-sm">
+                                                    <option value="Gh/s">Gh/s</option>
+                                                    <option value="Th/s">Th/s</option>
+                                                    <option value="Ph/s">Ph/s</option>
+                                                    <option value="Eh/s">Eh/s</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-medium text-rc-muted mb-1">Bonus (%)</label>
+                                            <input type="number" step="any" name="bonus" value={formData.bonus} onChange={handleInputChange} className="input-field w-full rounded-lg px-3 py-2 text-sm" placeholder="ex: 2.5" />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-medium text-rc-muted mb-1">Preț (RLT)</label>
+                                            <input type="number" step="any" name="price" value={formData.price} onChange={handleInputChange} className="input-field w-full rounded-lg px-3 py-2 text-sm" placeholder="ex: 15.5" required />
+                                        </div>
+
+                                        <button type="submit" className="w-full bg-rc-accent hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors flex justify-center items-center mt-2">
+                                            <i className="fa-solid fa-floppy-disk mr-2"></i>
+                                            Salvează
                                         </button>
-                                        <button 
-                                            onClick={() => setActiveTab('import')}
-                                            className={`flex-1 text-xs font-medium py-2 rounded-md transition-all ${activeTab === 'import' ? 'bg-rc-panel shadow text-white' : 'text-rc-muted hover:text-white'}`}
-                                        >
-                                            <i className="fa-solid fa-clipboard inline mr-1"></i>
-                                            Import
+                                    </form>
+                                </div>
+
+                                {/* Formular Import (Afisat permanent) */}
+                                <div className="glass-panel p-6 rounded-xl shadow-xl">
+                                    <h2 className="text-lg font-semibold text-white mb-4"><i className="fa-solid fa-clipboard mr-2"></i>Importă din Market</h2>
+                                    <form onSubmit={handleImport} className="space-y-4">
+                                        <div>
+                                            <label className="block text-xs font-medium text-rc-muted mb-2">
+                                                Lipește textul copiat direct din Market:
+                                            </label>
+                                            <textarea 
+                                                value={importText}
+                                                onChange={(e) => setImportText(e.target.value)}
+                                                className="input-field w-full rounded-lg px-3 py-2 text-xs font-mono h-32 resize-none"
+                                                placeholder="Legendary Dreamcatcher&#10;1.188 Eh/s | 33%&#10;Quantity: 2&#10;From&#10;136.5 RLT"
+                                                required
+                                            />
+                                        </div>
+                                        <button type="submit" className="w-full bg-rc-highlight hover:bg-green-600 text-white font-medium py-2 px-4 rounded-lg transition-colors flex justify-center items-center mt-2">
+                                            <i className="fa-solid fa-file-import mr-2"></i>
+                                            Importă Datele
                                         </button>
-                                    </div>
-
-                                    {activeTab === 'manual' ? (
-                                        <form onSubmit={handleAddMiner} className="space-y-4">
-                                            <div>
-                                                <label className="block text-xs font-medium text-rc-muted mb-1">Nume Miner</label>
-                                                <input type="text" name="name" value={formData.name} onChange={handleInputChange} className="input-field w-full rounded-lg px-3 py-2 text-sm" placeholder="ex: El Monstro" required />
+                                        
+                                        {importMessage.text && (
+                                            <div className={`p-2 rounded text-xs font-medium text-center mt-2 ${importMessage.type === 'success' ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
+                                                {importMessage.text}
                                             </div>
-                                            
-                                            <div className="flex space-x-2">
-                                                <div className="flex-1">
-                                                    <label className="block text-xs font-medium text-rc-muted mb-1">Putere</label>
-                                                    <input type="number" step="any" name="power" value={formData.power} onChange={handleInputChange} className="input-field w-full rounded-lg px-3 py-2 text-sm" placeholder="ex: 5.5" required />
-                                                </div>
-                                                <div className="w-24">
-                                                    <label className="block text-xs font-medium text-rc-muted mb-1">Unitate</label>
-                                                    <select name="powerUnit" value={formData.powerUnit} onChange={handleInputChange} className="input-field w-full rounded-lg px-3 py-2 text-sm">
-                                                        <option value="Gh/s">Gh/s</option>
-                                                        <option value="Th/s">Th/s</option>
-                                                        <option value="Ph/s">Ph/s</option>
-                                                        <option value="Eh/s">Eh/s</option>
-                                                    </select>
-                                                </div>
-                                            </div>
-
-                                            <div>
-                                                <label className="block text-xs font-medium text-rc-muted mb-1">Bonus (%)</label>
-                                                <input type="number" step="any" name="bonus" value={formData.bonus} onChange={handleInputChange} className="input-field w-full rounded-lg px-3 py-2 text-sm" placeholder="ex: 2.5" />
-                                            </div>
-
-                                            <div>
-                                                <label className="block text-xs font-medium text-rc-muted mb-1">Preț (RLT)</label>
-                                                <input type="number" step="any" name="price" value={formData.price} onChange={handleInputChange} className="input-field w-full rounded-lg px-3 py-2 text-sm" placeholder="ex: 15.5" required />
-                                            </div>
-
-                                            <button type="submit" className="w-full bg-rc-accent hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors flex justify-center items-center mt-2">
-                                                <i className="fa-solid fa-floppy-disk mr-2"></i>
-                                                Salvează
-                                            </button>
-                                        </form>
-                                    ) : (
-                                        <form onSubmit={handleImport} className="space-y-4">
-                                            <div>
-                                                <label className="block text-xs font-medium text-rc-muted mb-2">
-                                                    Lipește textul copiat direct din Market pentru a procesa lista automat.
-                                                </label>
-                                                <textarea 
-                                                    value={importText}
-                                                    onChange={(e) => setImportText(e.target.value)}
-                                                    className="input-field w-full rounded-lg px-3 py-2 text-xs font-mono h-48 resize-none"
-                                                    placeholder="Legendary Dreamcatcher&#10;1.188 Eh/s | 33%&#10;Quantity: 2&#10;From&#10;136.5 RLT&#10;&#10;..."
-                                                    required
-                                                />
-                                            </div>
-                                            <button type="submit" className="w-full bg-rc-highlight hover:bg-green-600 text-white font-medium py-2 px-4 rounded-lg transition-colors flex justify-center items-center mt-2">
-                                                <i className="fa-solid fa-file-import mr-2"></i>
-                                                Importă Datele
-                                            </button>
-                                            
-                                            {importMessage.text && (
-                                                <div className={`p-2 rounded text-xs font-medium text-center mt-2 ${importMessage.type === 'success' ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
-                                                    {importMessage.text}
-                                                </div>
-                                            )}
-                                        </form>
-                                    )}
+                                        )}
+                                    </form>
                                 </div>
                                 
                                 <div className="glass-panel p-4 rounded-xl text-sm text-rc-muted leading-relaxed">
