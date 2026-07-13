@@ -9,7 +9,7 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <script>
         tailwind.config = {
@@ -294,24 +294,19 @@
 
             // Helper rendering components
             const SortIcon = ({ columnKey }) => {
-                if (sortConfig.key !== columnKey) return <i data-lucide="arrow-up-down" className="inline w-3 h-3 ml-1 opacity-30"></i>;
+                if (sortConfig.key !== columnKey) return <i className="fa-solid fa-sort inline ml-1 opacity-30"></i>;
                 return sortConfig.direction === 'asc' 
-                    ? <i data-lucide="arrow-up" className="inline w-3 h-3 ml-1 text-rc-accent"></i>
-                    : <i data-lucide="arrow-down" className="inline w-3 h-3 ml-1 text-rc-accent"></i>;
+                    ? <i className="fa-solid fa-sort-up inline ml-1 text-rc-accent"></i>
+                    : <i className="fa-solid fa-sort-down inline ml-1 text-rc-accent"></i>;
             };
-
-            // Setup icons after render
-            useEffect(() => {
-                lucide.createIcons();
-            });
 
             return (
                 <div className="min-h-screen p-4 md:p-8">
                     <div className="max-w-7xl mx-auto space-y-8">
                         
-                        {/* Header */}
+                        {}
                         <header className="flex items-center space-x-3 mb-8">
-                            <i data-lucide="calculator" className="w-8 h-8 text-rc-accent"></i>
+                            <i className="fa-solid fa-calculator text-3xl text-rc-accent"></i>
                             <div>
                                 <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white">RollerCoin Profit Calculator</h1>
                                 <p className="text-rc-muted text-sm mt-1">Analizează și compară eficiența minerelor pentru a face cele mai bune achiziții.</p>
@@ -328,14 +323,14 @@
                                             onClick={() => setActiveTab('manual')}
                                             className={`flex-1 text-xs font-medium py-2 rounded-md transition-all ${activeTab === 'manual' ? 'bg-rc-panel shadow text-white' : 'text-rc-muted hover:text-white'}`}
                                         >
-                                            <i data-lucide="pen-tool" className="inline w-3 h-3 mr-1"></i>
+                                            <i className="fa-solid fa-pen inline mr-1"></i>
                                             Manual
                                         </button>
                                         <button 
                                             onClick={() => setActiveTab('import')}
                                             className={`flex-1 text-xs font-medium py-2 rounded-md transition-all ${activeTab === 'import' ? 'bg-rc-panel shadow text-white' : 'text-rc-muted hover:text-white'}`}
                                         >
-                                            <i data-lucide="clipboard-paste" className="inline w-3 h-3 mr-1"></i>
+                                            <i className="fa-solid fa-clipboard inline mr-1"></i>
                                             Import
                                         </button>
                                     </div>
@@ -374,7 +369,7 @@
                                             </div>
 
                                             <button type="submit" className="w-full bg-rc-accent hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors flex justify-center items-center mt-2">
-                                                <i data-lucide="save" className="w-4 h-4 mr-2"></i>
+                                                <i className="fa-solid fa-floppy-disk mr-2"></i>
                                                 Salvează
                                             </button>
                                         </form>
@@ -393,7 +388,7 @@
                                                 />
                                             </div>
                                             <button type="submit" className="w-full bg-rc-highlight hover:bg-green-600 text-white font-medium py-2 px-4 rounded-lg transition-colors flex justify-center items-center mt-2">
-                                                <i data-lucide="download" className="w-4 h-4 mr-2"></i>
+                                                <i className="fa-solid fa-file-import mr-2"></i>
                                                 Importă Datele
                                             </button>
                                             
@@ -459,7 +454,6 @@
                                                             <td className="p-4">{miner.bonus > 0 ? `${formatNumber(miner.bonus)}%` : '-'}</td>
                                                             <td className="p-4 font-semibold text-yellow-400">{formatNumber(miner.price)} <span className="text-xs font-normal">RLT</span></td>
                                                             
-                                                            {/* Highlight coloane importante */}
                                                             <td className="p-4 font-bold text-blue-400">
                                                                 {miner.costPerPh > 0 ? `${formatNumber(miner.costPerPh)} RLT` : 'N/A'}
                                                             </td>
@@ -473,7 +467,7 @@
                                                                     className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded transition-colors"
                                                                     title="Șterge"
                                                                 >
-                                                                    <i data-lucide="trash-2" className="w-4 h-4"></i>
+                                                                    <i className="fa-solid fa-trash"></i>
                                                                 </button>
                                                             </td>
                                                         </tr>
