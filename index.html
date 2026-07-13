@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RollerCoin Profit Calculator</title>
+    
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        rc: {
+                            dark: '#0f172a',
+                            panel: '#1e293b',
+                            accent: '#3b82f6',
+                            highlight: '#10b981',
+                            text: '#f8fafc',
+                            muted: '#94a3b8'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+        
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b; 
+        }
+
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .input-field {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            transition: all 0.2s;
+        }
+        .input-field:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+        
+        .table-row-hover:hover {
+            background-color: rgba(59, 130, 246, 0.05);
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // Date de start extrase din prompt
+        const INITIAL_MINERS = [
+            { id: '1', name: 'Pillar Pillagers', power: 5000000, bonus: 2.00, price: 15.74 },
+            { id: '2', name: 'Legendary RadEx', power: 5105000, bonus: 2.62, price: 16.27 },
+            { id: '3', name: 'Filtration 90', power: 5000000, bonus: 5.00, price: 17.32 },
+            { id: '4', name: 'Riding Free', power: 5400000, bonus: 2.40, price: 18.90 },
+            { id: '5', name: 'Relic', power: 6930000, bonus: 2.60, price: 19.95 },
+            { id: '6', name: 'Tree Invader', power: 6500000, bonus: 3.27, price: 19.95 },
+            { id: '7', name: 'BreathTaking', power: 6648000, bonus: 2.43, price: 20.00 },
+            { id: '8', name: 'Light Side', power: 5113000, bonus: 5.00, price: 20.05 },
+            { id: '9', name: 'Corn Popper', power: 5027000, bonus: 2.18, price: 21.00 },
+            { id: '10', name: 'Rare Philosopher\'s', power: 6910000, bonus: 4.00, price: 21.00 }
+        ];
+
+        const formatNumber = (num) => {
+            return new Intl.NumberFormat('ro-RO', { maximumFractionDigits: 3 }).format(num);
+        };
+
+        const calculateMetrics = (miner) => {
+            // Power is stored internally in Gh/s
+            const powerPh = miner.power / 1000000;
+            const powerTh = miner.power / 1000;
+            
+            const costPerPh = powerPh > 0 ? (miner.price / powerPh) : 0;
+            const costPerBonus = miner.bonus > 0 ? (miner.price / miner.bonus) : 0;
+            const thPerRlt = miner.price > 0 ? (powerTh / miner.price) : 0;
+
+            return {
+                ...miner,
+                powerPh,
+                costPerPh,
+                costPerBonus,
+                thPerRlt
+            };
+        };
+
+        const App = () => {
+            // State initialization with localStorage persistence
+            const [miners, setMiners] = useState(() => {
+                const saved = localStorage.getItem('rc_miners');
+                if (saved) {
+                    try {
+                        return JSON.parse(saved);
+                    } catch (e) {
+                        return INITIAL_MINERS;
+                    }
+                }
+                return INITIAL_MINERS;
+            });
+
+            // Form state
+            const [formData, setFormData] = useState({
+                name: '',
+                power: '',
+                powerUnit: 'Gh/s',
+                bonus: '',
+                price: ''
+            });
+
+            // Sorting state
+            const [sortConfig, setSortConfig] = useState({ key: 'costPerPh', direction: 'asc' });
+
+            // Persist data when changed
+            useEffect(() => {
+                localStorage.setItem('rc_miners', JSON.stringify(miners));
+            }, [miners]);
+
+            const handleInputChange = (e) => {
+                const { name, value } = e.target;
+                setFormData(prev => ({ ...prev, [name]: value }));
+            };
+
+            const handleAddMiner = (e) => {
+                e.preventDefault();
+                if (!formData.name || !formData.power || !formData.price) return;
+
+                let powerInGhs = parseFloat(formData.power);
+                if (formData.powerUnit === 'Th/s') powerInGhs *= 1000;
+                if (formData.powerUnit === 'Ph/s') powerInGhs *= 1000000;
+
+                const newMiner = {
+                    id: Date.now().toString(),
+                    name: formData.name,
+                    power: powerInGhs,
+                    bonus: parseFloat(formData.bonus) || 0,
+                    price: parseFloat(formData.price)
+                };
+
+                setMiners(prev => [...prev, newMiner]);
+                
+                // Reset form
+                setFormData({
+                    name: '',
+                    power: '',
+                    powerUnit: 'Gh/s',
+                    bonus: '',
+                    price: ''
+                });
+            };
+
+            const handleDelete = (id) => {
+                setMiners(prev => prev.filter(m => m.id !== id));
+            };
+
+            const handleSort = (key) => {
+                let direction = 'asc';
+                if (sortConfig.key === key && sortConfig.direction === 'asc') {
+                    direction = 'desc';
+                }
+                setSortConfig({ key, direction });
+            };
+
+            const sortedMiners = useMemo(() => {
+                let sortableItems = miners.map(calculateMetrics);
+                if (sortConfig !== null) {
+                    sortableItems.sort((a, b) => {
+                        if (a[sortConfig.key] < b[sortConfig.key]) {
+                            return sortConfig.direction === 'asc' ? -1 : 1;
+                        }
+                        if (a[sortConfig.key] > b[sortConfig.key]) {
+                            return sortConfig.direction === 'asc' ? 1 : -1;
+                        }
+                        return 0;
+                    });
+                }
+                return sortableItems;
+            }, [miners, sortConfig]);
+
+            // Helper rendering components
+            const SortIcon = ({ columnKey }) => {
+                if (sortConfig.key !== columnKey) return <i data-lucide="arrow-up-down" className="inline w-3 h-3 ml-1 opacity-30"></i>;
+                return sortConfig.direction === 'asc' 
+                    ? <i data-lucide="arrow-up" className="inline w-3 h-3 ml-1 text-rc-accent"></i>
+                    : <i data-lucide="arrow-down" className="inline w-3 h-3 ml-1 text-rc-accent"></i>;
+            };
+
+            // Setup icons after render
+            useEffect(() => {
+                lucide.createIcons();
+            });
+
+            return (
+                <div className="min-h-screen p-4 md:p-8">
+                    <div className="max-w-7xl mx-auto space-y-8">
+                        
+                        {/* Header */}
+                        <header className="flex items-center space-x-3 mb-8">
+                            <i data-lucide="calculator" className="w-8 h-8 text-rc-accent"></i>
+                            <div>
+                                <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white">RollerCoin Profit Calculator</h1>
+                                <p className="text-rc-muted text-sm mt-1">Analizează și compară eficiența minerelor pentru a face cele mai bune achiziții.</p>
+                            </div>
+                        </header>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                            
+                            {}
+                            <div className="lg:col-span-1 space-y-4">
+                                <div className="glass-panel p-6 rounded-xl shadow-xl">
+                                    <h2 className="text-lg font-semibold mb-4 flex items-center">
+                                        <i data-lucide="plus-circle" className="w-5 h-5 mr-2 text-rc-highlight"></i>
+                                        Adaugă Miner Nou
+                                    </h2>
+                                    <form onSubmit={handleAddMiner} className="space-y-4">
+                                        <div>
+                                            <label className="block text-xs font-medium text-rc-muted mb-1">Nume Miner</label>
+                                            <input type="text" name="name" value={formData.name} onChange={handleInputChange} className="input-field w-full rounded-lg px-3 py-2 text-sm" placeholder="ex: El Monstro" required />
+                                        </div>
+                                        
+                                        <div className="flex space-x-2">
+                                            <div className="flex-1">
+                                                <label className="block text-xs font-medium text-rc-muted mb-1">Putere</label>
+                                                <input type="number" step="any" name="power" value={formData.power} onChange={handleInputChange} className="input-field w-full rounded-lg px-3 py-2 text-sm" placeholder="ex: 5.5" required />
+                                            </div>
+                                            <div className="w-24">
+                                                <label className="block text-xs font-medium text-rc-muted mb-1">Unitate</label>
+                                                <select name="powerUnit" value={formData.powerUnit} onChange={handleInputChange} className="input-field w-full rounded-lg px-3 py-2 text-sm">
+                                                    <option value="Gh/s">Gh/s</option>
+                                                    <option value="Th/s">Th/s</option>
+                                                    <option value="Ph/s">Ph/s</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-medium text-rc-muted mb-1">Bonus (%)</label>
+                                            <input type="number" step="any" name="bonus" value={formData.bonus} onChange={handleInputChange} className="input-field w-full rounded-lg px-3 py-2 text-sm" placeholder="ex: 2.5" />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-medium text-rc-muted mb-1">Preț (RLT)</label>
+                                            <input type="number" step="any" name="price" value={formData.price} onChange={handleInputChange} className="input-field w-full rounded-lg px-3 py-2 text-sm" placeholder="ex: 15.5" required />
+                                        </div>
+
+                                        <button type="submit" className="w-full bg-rc-accent hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors flex justify-center items-center mt-2">
+                                            <i data-lucide="save" className="w-4 h-4 mr-2"></i>
+                                            Salvează Miner
+                                        </button>
+                                    </form>
+                                </div>
+                                
+                                <div className="glass-panel p-4 rounded-xl text-sm text-rc-muted leading-relaxed">
+                                    <p><strong>Sfaturi:</strong></p>
+                                    <ul className="list-disc pl-4 mt-2 space-y-1">
+                                        <li><span className="text-rc-highlight">Preț / Ph/s</span> mic înseamnă putere brută ieftină.</li>
+                                        <li><span className="text-rc-highlight">Preț / 1% Bonus</span> mic este esențial pentru conturile cu putere mare de bază.</li>
+                                        <li>Apasă pe capul de tabel pentru a sorta.</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            {}
+                            <div className="lg:col-span-3">
+                                <div className="glass-panel rounded-xl shadow-xl overflow-hidden flex flex-col h-full">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="bg-rc-panel/50 text-xs uppercase tracking-wider text-rc-muted border-b border-white/10">
+                                                    <th className="p-4 font-medium cursor-pointer hover:text-white" onClick={() => handleSort('name')}>
+                                                        Miner <SortIcon columnKey="name" />
+                                                    </th>
+                                                    <th className="p-4 font-medium cursor-pointer hover:text-white" onClick={() => handleSort('powerPh')}>
+                                                        Putere (Ph/s) <SortIcon columnKey="powerPh" />
+                                                    </th>
+                                                    <th className="p-4 font-medium cursor-pointer hover:text-white" onClick={() => handleSort('bonus')}>
+                                                        Bonus % <SortIcon columnKey="bonus" />
+                                                    </th>
+                                                    <th className="p-4 font-medium cursor-pointer hover:text-white" onClick={() => handleSort('price')}>
+                                                        Preț (RLT) <SortIcon columnKey="price" />
+                                                    </th>
+                                                    <th className="p-4 font-medium cursor-pointer hover:text-rc-highlight text-blue-300" onClick={() => handleSort('costPerPh')}>
+                                                        Preț / Ph/s <SortIcon columnKey="costPerPh" />
+                                                    </th>
+                                                    <th className="p-4 font-medium cursor-pointer hover:text-rc-highlight text-purple-300" onClick={() => handleSort('costPerBonus')}>
+                                                        Preț / 1% Bonus <SortIcon columnKey="costPerBonus" />
+                                                    </th>
+                                                    <th className="p-4 font-medium text-center">Acțiuni</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-white/5 text-sm">
+                                                {sortedMiners.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan="7" className="p-8 text-center text-rc-muted">
+                                                            Niciun miner adăugat. Adaugă unul din formularul alăturat.
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    sortedMiners.map((miner) => (
+                                                        <tr key={miner.id} className="table-row-hover transition-colors">
+                                                            <td className="p-4 font-medium text-white">{miner.name}</td>
+                                                            <td className="p-4">{formatNumber(miner.powerPh)} Ph/s</td>
+                                                            <td className="p-4">{miner.bonus > 0 ? `${formatNumber(miner.bonus)}%` : '-'}</td>
+                                                            <td className="p-4 font-semibold text-yellow-400">{formatNumber(miner.price)} <span className="text-xs font-normal">RLT</span></td>
+                                                            
+                                                            {/* Highlight coloane importante */}
+                                                            <td className="p-4 font-bold text-blue-400">
+                                                                {miner.costPerPh > 0 ? `${formatNumber(miner.costPerPh)} RLT` : 'N/A'}
+                                                            </td>
+                                                            <td className="p-4 font-bold text-purple-400">
+                                                                {miner.costPerBonus > 0 ? `${formatNumber(miner.costPerBonus)} RLT` : 'N/A'}
+                                                            </td>
+                                                            
+                                                            <td className="p-4 text-center">
+                                                                <button 
+                                                                    onClick={() => handleDelete(miner.id)}
+                                                                    className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded transition-colors"
+                                                                    title="Șterge"
+                                                                >
+                                                                    <i data-lucide="trash-2" className="w-4 h-4"></i>
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
