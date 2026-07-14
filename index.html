@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RollerCoin Profit Calculator</title>
     
+    <!-- React & Tailwind CSS via CDN -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -41,20 +42,10 @@
             color: #f8fafc;
         }
         
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #1e293b; 
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #475569; 
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #64748b; 
-        }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
 
         .glass-panel {
             background: rgba(30, 41, 59, 0.7);
@@ -75,9 +66,7 @@
             box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
         }
         
-        .table-row-hover:hover {
-            background-color: rgba(59, 130, 246, 0.05);
-        }
+        .table-row-hover:hover { background-color: rgba(59, 130, 246, 0.05); }
         
         @keyframes fadeIn {
             from { opacity: 0; transform: scale(0.95); }
@@ -91,62 +80,37 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
-        // Date de start extrase din prompt
-        const INITIAL_MINERS = [
-            { id: '1', name: 'Pillar Pillagers', power: 5000000, bonus: 2.00, price: 15.74 },
-            { id: '2', name: 'Legendary RadEx', power: 5105000, bonus: 2.62, price: 16.27 },
-            { id: '3', name: 'Filtration 90', power: 5000000, bonus: 5.00, price: 17.32 },
-            { id: '4', name: 'Riding Free', power: 5400000, bonus: 2.40, price: 18.90 },
-            { id: '5', name: 'Relic', power: 6930000, bonus: 2.60, price: 19.95 },
-            { id: '6', name: 'Tree Invader', power: 6500000, bonus: 3.27, price: 19.95 },
-            { id: '7', name: 'BreathTaking', power: 6648000, bonus: 2.43, price: 20.00 },
-            { id: '8', name: 'Light Side', power: 5113000, bonus: 5.00, price: 20.05 },
-            { id: '9', name: 'Corn Popper', power: 5027000, bonus: 2.18, price: 21.00 },
-            { id: '10', name: 'Rare Philosopher\'s', power: 6910000, bonus: 4.00, price: 21.00 }
-        ];
+        const INITIAL_MINERS = [];
+        
+        // Structura initiala pentru piese
+        const INITIAL_PARTS = {
+            Wire: { Common: 0, Uncommon: 0, Rare: 0, Epic: 0, Legendary: 0 },
+            Fan: { Common: 0, Uncommon: 0, Rare: 0, Epic: 0, Legendary: 0 },
+            Hashboard: { Common: 0, Uncommon: 0, Rare: 0, Epic: 0, Legendary: 0 }
+        };
 
         const formatNumber = (num) => {
-            return new Intl.NumberFormat('ro-RO', { maximumFractionDigits: 3 }).format(num);
+            return new Intl.NumberFormat('ro-RO', { maximumFractionDigits: 4 }).format(num);
         };
 
         const calculateMetrics = (miner) => {
-            // Power is stored internally in Gh/s
             const powerPh = miner.power / 1000000;
             const powerTh = miner.power / 1000;
-            
             const costPerPh = powerPh > 0 ? (miner.price / powerPh) : 0;
             const costPerBonus = miner.bonus > 0 ? (miner.price / miner.bonus) : 0;
             const thPerRlt = miner.price > 0 ? (powerTh / miner.price) : 0;
-
-            return {
-                ...miner,
-                powerPh,
-                costPerPh,
-                costPerBonus,
-                thPerRlt
-            };
+            return { ...miner, powerPh, costPerPh, costPerBonus, thPerRlt };
         };
 
         const parseMarketPaste = (text) => {
             const lines = text.split('\n').map(l => l.trim()).filter(l => l !== '');
             const parsedMiners = [];
-            let currentMiner = null;
-            let nextMinerInCollection = false; // Flag care reține statusul pentru următorul miner
-
+            
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
-
-                // Detectare "In collection" - browserul îl pune ÎNAINTEA numelui minerului
-                if (line.toLowerCase() === 'in collection') {
-                    nextMinerInCollection = true;
-                    continue;
-                }
-
-                // Căutăm linia cu Putere și Bonus (ex: "578.000 Ph/s | 65%")
                 const powerMatch = line.match(/([\d.,]+)\s*(Gh\/s|Th\/s|Ph\/s|Eh\/s)/i);
                 
                 if (powerMatch) {
-                    // Căutăm numele minerului urcând în sus, sărind peste linii irelevante
                     let nameOffset = 1;
                     while(i - nameOffset >= 0 && (
                         lines[i-nameOffset].toLowerCase() === 'in collection' || 
@@ -156,9 +120,17 @@
                         nameOffset++;
                     }
                     
-                    let name = i - nameOffset >= 0 ? lines[i-nameOffset] : "Miner fără nume " + (parsedMiners.length + 1);
+                    let name = i - nameOffset >= 0 ? lines[i-nameOffset] : "Miner Necunoscut";
+                    let inCollection = false;
+                    if (lines[i+1] && lines[i+1].toLowerCase().startsWith('quantity')) {
+                        if (lines[i-nameOffset+1] && lines[i-nameOffset+1].toLowerCase() === 'in collection') {
+                            inCollection = true;
+                        }
+                        if (lines[i+3] && lines[i+3].toLowerCase() === 'in collection') {
+                             inCollection = true;
+                        }
+                    }
 
-                    // Extragem puterea
                     let power = parseFloat(powerMatch[1].replace(/,/g, ''));
                     let unit = powerMatch[2].toLowerCase();
                     if (unit === 'gh/s') power *= 1;
@@ -166,94 +138,105 @@
                     else if (unit === 'ph/s') power *= 1000000;
                     else if (unit === 'eh/s') power *= 1000000000;
 
-                    // Extragem bonusul
                     let bonus = 0;
                     const bonusMatch = line.match(/\|\s*([\d.,]+)\s*%/);
                     if (bonusMatch) {
                         bonus = parseFloat(bonusMatch[1].replace(/,/g, ''));
                     }
 
-                    currentMiner = {
-                        name,
-                        power,
-                        bonus,
-                        price: 0,
-                        inCollection: nextMinerInCollection // Aplicăm statusul reținut
-                    };
-                }
-
-                // Dacă avem un miner în așteptare și găsim linia cu prețul (RLT)
-                if (currentMiner && line.toLowerCase().includes('rlt')) {
-                    const priceMatch = line.match(/([\d.,]+)\s*rlt/i);
-                    if (priceMatch) {
-                        currentMiner.price = parseFloat(priceMatch[1].replace(/,/g, ''));
-                        
-                        if (currentMiner.price > 0) {
-                            parsedMiners.push({
-                                id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-                                ...currentMiner
-                            });
-                            // După ce a fost atribuit minerului corect, resetăm statusul pentru următorii
-                            nextMinerInCollection = false; 
+                    let price = 0;
+                    for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+                        if (lines[j].toLowerCase().includes('rlt')) {
+                            const priceMatch = lines[j].match(/([\d.,]+)\s*rlt/i);
+                            if (priceMatch) {
+                                price = parseFloat(priceMatch[1].replace(/,/g, ''));
+                                break;
+                            }
                         }
-                        // Resetăm starea pentru a căuta următorul miner din listă
-                        currentMiner = null;
+                    }
+
+                    if (price > 0) {
+                        parsedMiners.push({
+                            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                            name, power, bonus, price, inCollection
+                        });
                     }
                 }
             }
-
             return parsedMiners;
         };
 
-        const App = () => {
-            // State initialization with localStorage persistence
-            const [miners, setMiners] = useState(() => {
-                const saved = localStorage.getItem('rc_miners');
-                if (saved) {
-                    try {
-                        return JSON.parse(saved);
-                    } catch (e) {
-                        return INITIAL_MINERS;
+        const parsePartsPaste = (text) => {
+            const lines = text.split('\n').map(l => l.trim()).filter(l => l !== '');
+            const parsedParts = [];
+            
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                
+                // Căutăm linii care conțin raritatea și tipul piesei (ex: "Legendary Hashboard")
+                if (line.match(/(Common|Uncommon|Rare|Epic|Legendary)\s+(Wire|Fan|Hashboard)/i)) {
+                    const match = line.match(/(Common|Uncommon|Rare|Epic|Legendary)\s+(Wire|Fan|Hashboard)/i);
+                    const rarity = match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase(); // Normalize
+                    const type = match[2].charAt(0).toUpperCase() + match[2].slice(1).toLowerCase(); // Normalize
+                    
+                    let price = 0;
+                    // Căutăm prețul în următoarele 3-4 rânduri
+                    for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
+                        if (lines[j].toLowerCase().includes('rlt')) {
+                            const priceMatch = lines[j].match(/([\d.,]+)\s*rlt/i);
+                            if (priceMatch) {
+                                price = parseFloat(priceMatch[1].replace(/,/g, ''));
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (price > 0) {
+                        parsedParts.push({ type, rarity, price });
                     }
                 }
-                return INITIAL_MINERS;
-            });
+            }
+            return parsedParts;
+        };
 
-            // Form state
-            const [formData, setFormData] = useState({
-                name: '',
-                power: '',
-                powerUnit: 'Gh/s',
-                bonus: '',
-                price: '',
-                inCollection: false
+        const App = () => {
+            const [activeTab, setActiveTab] = useState('miners');
+            
+            // --- STATE MINERE ---
+            const [miners, setMiners] = useState(() => {
+                const saved = localStorage.getItem('rc_miners');
+                return saved ? JSON.parse(saved) : INITIAL_MINERS;
             });
-
+            const [formData, setFormData] = useState({ name: '', power: '', powerUnit: 'Gh/s', bonus: '', price: '', inCollection: false });
             const [importText, setImportText] = useState('');
             const [importMessage, setImportMessage] = useState({ text: '', type: '' });
-
-            // Sorting state
             const [sortConfig, setSortConfig] = useState({ key: 'costPerPh', direction: 'asc' });
-
             const [showClearModal, setShowClearModal] = useState(false);
 
-            // Persist data when changed
-            useEffect(() => {
-                localStorage.setItem('rc_miners', JSON.stringify(miners));
-            }, [miners]);
+            // --- STATE PIESE ---
+            const [parts, setParts] = useState(() => {
+                const saved = localStorage.getItem('rc_parts');
+                return saved ? JSON.parse(saved) : INITIAL_PARTS;
+            });
+            const [craftingLevel, setCraftingLevel] = useState(() => {
+                const saved = localStorage.getItem('rc_crafting_level');
+                return saved ? parseInt(saved) : 1;
+            });
+            const [partsImportText, setPartsImportText] = useState('');
+            const [partsImportMsg, setPartsImportMsg] = useState('');
+
+            useEffect(() => { localStorage.setItem('rc_miners', JSON.stringify(miners)); }, [miners]);
+            useEffect(() => { localStorage.setItem('rc_parts', JSON.stringify(parts)); }, [parts]);
+            useEffect(() => { localStorage.setItem('rc_crafting_level', craftingLevel.toString()); }, [craftingLevel]);
 
             const handleInputChange = (e) => {
                 const { name, type, checked, value } = e.target;
-                setFormData(prev => ({ 
-                    ...prev, 
-                    [name]: type === 'checkbox' ? checked : value 
-                }));
+                setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
             };
 
             const handleAddMiner = (e) => {
                 e.preventDefault();
                 if (!formData.name || !formData.power || !formData.price) return;
-
                 let powerInGhs = parseFloat(formData.power);
                 if (formData.powerUnit === 'Th/s') powerInGhs *= 1000;
                 if (formData.powerUnit === 'Ph/s') powerInGhs *= 1000000;
@@ -269,44 +252,15 @@
                 };
 
                 setMiners(prev => {
-                    // Verificăm dacă există deja un miner cu același nume
                     const existingIndex = prev.findIndex(m => m.name.trim().toLowerCase() === newMiner.name.toLowerCase());
-                    
                     if (existingIndex !== -1) {
-                        // Actualizează minerul existent
                         const updatedList = [...prev];
-                        updatedList[existingIndex] = {
-                            ...updatedList[existingIndex],
-                            power: newMiner.power,
-                            bonus: newMiner.bonus,
-                            price: newMiner.price,
-                            // Păstrează statusul "In Collection" dacă era deja bifat anterior
-                            inCollection: newMiner.inCollection || updatedList[existingIndex].inCollection
-                        };
+                        updatedList[existingIndex] = { ...updatedList[existingIndex], power: newMiner.power, bonus: newMiner.bonus, price: newMiner.price, inCollection: newMiner.inCollection || updatedList[existingIndex].inCollection };
                         return updatedList;
                     }
-                    // Dacă nu există, îl adăugăm la final
                     return [...prev, newMiner];
                 });
-                
-                // Reset form
-                setFormData({
-                    name: '',
-                    power: '',
-                    powerUnit: 'Gh/s',
-                    bonus: '',
-                    price: '',
-                    inCollection: false
-                });
-            };
-
-            const handleDelete = (id) => {
-                setMiners(prev => prev.filter(m => m.id !== id));
-            };
-
-            const handleClearAll = () => {
-                setMiners([]); // Goleste lista (implicit va sterge si din memoria locala)
-                setShowClearModal(false); // Inchide fereastra
+                setFormData({ name: '', power: '', powerUnit: 'Gh/s', bonus: '', price: '', inCollection: false });
             };
 
             const handleImport = (e) => {
@@ -321,52 +275,100 @@
                         let updatedCount = 0;
 
                         newMiners.forEach(newMiner => {
-                            // Căutăm dacă minerul importat există deja în lista curentă
-                            const existingIndex = updatedMiners.findIndex(
-                                m => m.name.trim().toLowerCase() === newMiner.name.trim().toLowerCase()
-                            );
-
+                            const existingIndex = updatedMiners.findIndex(m => m.name.trim().toLowerCase() === newMiner.name.trim().toLowerCase());
                             if (existingIndex !== -1) {
-                                // Dacă există, actualizăm datele
-                                updatedMiners[existingIndex] = {
-                                    ...updatedMiners[existingIndex],
-                                    power: newMiner.power,
-                                    bonus: newMiner.bonus,
-                                    price: newMiner.price,
-                                    inCollection: newMiner.inCollection || updatedMiners[existingIndex].inCollection
-                                };
+                                updatedMiners[existingIndex] = { ...updatedMiners[existingIndex], power: newMiner.power, bonus: newMiner.bonus, price: newMiner.price, inCollection: newMiner.inCollection || updatedMiners[existingIndex].inCollection };
                                 updatedCount++;
                             } else {
-                                // Dacă nu există, adăugăm ca miner nou
                                 updatedMiners.push(newMiner);
                                 addedCount++;
                             }
                         });
 
-                        // Formăm mesajul pentru utilizator
                         let msgs = [];
                         if (addedCount > 0) msgs.push(`${addedCount} adăugate.`);
                         if (updatedCount > 0) msgs.push(`${updatedCount} actualizate.`);
-                        
                         setImportMessage({ text: `Succes: ${msgs.join(' ')}`, type: 'success' });
-                        
                         return updatedMiners;
                     });
-                    
                     setImportText('');
                 } else {
                     setImportMessage({ text: 'Nu s-a putut detecta niciun miner. Asigură-te că ai copiat corect textul.', type: 'error' });
                 }
-                
-                // Ținem mesajul pe ecran un pic mai mult (5 secunde) pentru a putea fi citit
                 setTimeout(() => setImportMessage({ text: '', type: '' }), 5000);
+            };
+
+            const handlePartsImport = (e) => {
+                e.preventDefault();
+                if (!partsImportText.trim()) return;
+
+                const parsed = parsePartsPaste(partsImportText);
+                if (parsed.length > 0) {
+                    setParts(prev => {
+                        const newParts = { ...prev };
+                        parsed.forEach(p => {
+                            if (newParts[p.type] && newParts[p.type][p.rarity] !== undefined) {
+                                newParts[p.type][p.rarity] = p.price;
+                            }
+                        });
+                        return newParts;
+                    });
+                    setPartsImportMsg(`Succes: S-au actualizat prețurile pentru ${parsed.length} piese.`);
+                    setPartsImportText('');
+                } else {
+                    setPartsImportMsg("Eroare: Nu s-a putut detecta nicio piesă. Verifică textul.");
+                }
+                setTimeout(() => setPartsImportMsg(''), 5000);
+            };
+
+            const getDiscountPercent = (level) => {
+                switch(level) {
+                    case 1: return 0;
+                    case 2: return 5;
+                    case 3: return 10;
+                    case 4: return 15;
+                    case 5: return 25;
+                    default: return 0;
+                }
+            };
+
+            const calculateCrafting = (type, targetRarity) => {
+                const p = parts[type];
+                let cost = 0;
+                let prevRarity = '';
+                let partsNeeded = 0;
+                let baseFee = 0;
+                let canCalculate = false;
+
+                const discountMultiplier = 1 - (getDiscountPercent(craftingLevel) / 100);
+
+                if (targetRarity === 'Uncommon') {
+                    prevRarity = 'Common'; partsNeeded = 50; baseFee = 0.005;
+                } else if (targetRarity === 'Rare') {
+                    prevRarity = 'Uncommon'; partsNeeded = 20; baseFee = 0.05;
+                } else if (targetRarity === 'Epic') {
+                    prevRarity = 'Rare'; partsNeeded = 10; baseFee = 0.75;
+                } else if (targetRarity === 'Legendary') {
+                    prevRarity = 'Epic'; partsNeeded = 5; baseFee = 0.75;
+                }
+
+                if (prevRarity && p[prevRarity] > 0) {
+                    const partsCost = partsNeeded * p[prevRarity];
+                    const feeCost = baseFee * discountMultiplier;
+                    cost = partsCost + feeCost;
+                    canCalculate = true;
+                }
+
+                const marketPrice = p[targetRarity];
+                const isCraftingCheaper = canCalculate && marketPrice > 0 && cost < marketPrice;
+                const savings = canCalculate && marketPrice > 0 ? (marketPrice - cost) : 0;
+
+                return { canCalculate, cost, prevRarity, partsNeeded, baseFee, marketPrice, isCraftingCheaper, savings };
             };
 
             const handleSort = (key) => {
                 let direction = 'asc';
-                if (sortConfig.key === key && sortConfig.direction === 'asc') {
-                    direction = 'desc';
-                }
+                if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
                 setSortConfig({ key, direction });
             };
 
@@ -374,31 +376,23 @@
                 let sortableItems = miners.map(calculateMetrics);
                 if (sortConfig !== null) {
                     sortableItems.sort((a, b) => {
-                        if (a[sortConfig.key] < b[sortConfig.key]) {
-                            return sortConfig.direction === 'asc' ? -1 : 1;
-                        }
-                        if (a[sortConfig.key] > b[sortConfig.key]) {
-                            return sortConfig.direction === 'asc' ? 1 : -1;
-                        }
+                        if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
+                        if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
                         return 0;
                     });
                 }
                 return sortableItems;
             }, [miners, sortConfig]);
 
-            // Helper rendering components
             const SortIcon = ({ columnKey }) => {
                 if (sortConfig.key !== columnKey) return <i className="fa-solid fa-sort inline ml-1 opacity-30"></i>;
-                return sortConfig.direction === 'asc' 
-                    ? <i className="fa-solid fa-sort-up inline ml-1 text-rc-accent"></i>
-                    : <i className="fa-solid fa-sort-down inline ml-1 text-rc-accent"></i>;
+                return sortConfig.direction === 'asc' ? <i className="fa-solid fa-sort-up inline ml-1 text-rc-accent"></i> : <i className="fa-solid fa-sort-down inline ml-1 text-rc-accent"></i>;
             };
 
             const renderStyledName = (name) => {
                 const words = name.split(' ');
                 const firstWord = words[0].toLowerCase();
                 let colorClass = '';
-
                 switch (firstWord) {
                     case 'uncommon': colorClass = 'text-green-400'; break;
                     case 'rare': colorClass = 'text-blue-400'; break;
@@ -406,23 +400,26 @@
                     case 'legendary': colorClass = 'text-yellow-400'; break;
                     case 'unreal': colorClass = 'text-red-500'; break;
                 }
-
                 if (colorClass) {
-                    return (
-                        <>
-                            <span className={colorClass}>{words[0]}</span>{' '}
-                            {words.slice(1).join(' ')}
-                        </>
-                    );
+                    return <><span className={colorClass}>{words[0]}</span>{' '}{words.slice(1).join(' ')}</>;
                 }
                 return name;
+            };
+
+            const renderPartColor = (rarity) => {
+                switch (rarity.toLowerCase()) {
+                    case 'uncommon': return 'text-green-400';
+                    case 'rare': return 'text-blue-400';
+                    case 'epic': return 'text-fuchsia-400';
+                    case 'legendary': return 'text-yellow-400';
+                    default: return 'text-white';
+                }
             };
 
             return (
                 <div className="min-h-screen p-4 md:p-8">
                     <div className="max-w-7xl mx-auto space-y-8">
                         
-                        {}
                         <header className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0 mb-8 border-b border-white/10 pb-6">
                             <div className="flex items-center space-x-3">
                                 <i className="fa-solid fa-calculator text-3xl text-rc-accent"></i>
@@ -432,18 +429,11 @@
                                 </div>
                             </div>
                             
-                            {/* Butoane Navigatie Tabs */}
                             <div className="flex bg-rc-dark/50 p-1 rounded-lg border border-white/10 w-fit shadow-inner">
-                                <button 
-                                    onClick={() => setActiveTab('miners')}
-                                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'miners' ? 'bg-rc-accent text-white shadow' : 'text-rc-muted hover:text-white hover:bg-white/5'}`}
-                                >
+                                <button onClick={() => setActiveTab('miners')} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'miners' ? 'bg-rc-accent text-white shadow' : 'text-rc-muted hover:text-white hover:bg-white/5'}`}>
                                     <i className="fa-solid fa-server mr-2"></i>Minere
                                 </button>
-                                <button 
-                                    onClick={() => setActiveTab('parts')}
-                                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'parts' ? 'bg-purple-600 text-white shadow' : 'text-rc-muted hover:text-white hover:bg-white/5'}`}
-                                >
+                                <button onClick={() => setActiveTab('parts')} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'parts' ? 'bg-purple-600 text-white shadow' : 'text-rc-muted hover:text-white hover:bg-white/5'}`}>
                                     <i className="fa-solid fa-hammer mr-2"></i>Crafting Piese
                                 </button>
                             </div>
@@ -452,10 +442,7 @@
                         {/* --- TABUL 1: MINERE --- */}
                         <div className={`grid grid-cols-1 lg:grid-cols-4 gap-6 animate-[fadeIn_0.3s_ease-out] ${activeTab === 'miners' ? '' : 'hidden'}`}>
                             
-                            {}
                             <div className="lg:col-span-1 space-y-4">
-                                
-                                {/* Formular Manual */}
                                 <div className="glass-panel p-6 rounded-xl shadow-xl">
                                     <h2 className="text-lg font-semibold text-white mb-4"><i className="fa-solid fa-pen mr-2"></i>Adăugare Manuală</h2>
                                     <form onSubmit={handleAddMiner} className="space-y-4">
@@ -463,7 +450,6 @@
                                             <label className="block text-xs font-medium text-rc-muted mb-1">Nume Miner</label>
                                             <input type="text" name="name" value={formData.name} onChange={handleInputChange} className="input-field w-full rounded-lg px-3 py-2 text-sm" placeholder="ex: El Monstro" required />
                                         </div>
-                                        
                                         <div className="flex space-x-2">
                                             <div className="flex-1">
                                                 <label className="block text-xs font-medium text-rc-muted mb-1">Putere</label>
@@ -479,50 +465,34 @@
                                                 </select>
                                             </div>
                                         </div>
-
                                         <div>
                                             <label className="block text-xs font-medium text-rc-muted mb-1">Bonus (%)</label>
                                             <input type="number" step="any" name="bonus" value={formData.bonus} onChange={handleInputChange} className="input-field w-full rounded-lg px-3 py-2 text-sm" placeholder="ex: 2.5" />
                                         </div>
-
                                         <div>
                                             <label className="block text-xs font-medium text-rc-muted mb-1">Preț (RLT)</label>
                                             <input type="number" step="any" name="price" value={formData.price} onChange={handleInputChange} className="input-field w-full rounded-lg px-3 py-2 text-sm" placeholder="ex: 15.5" required />
                                         </div>
-
                                         <label className="flex items-center space-x-2 cursor-pointer pt-1">
                                             <input type="checkbox" name="inCollection" checked={formData.inCollection} onChange={handleInputChange} className="rounded border-white/20 text-rc-accent focus:ring-rc-accent bg-rc-dark/50 w-4 h-4 cursor-pointer" />
                                             <span className="text-xs font-medium text-white/80">Deținut (In Collection)</span>
                                         </label>
-
                                         <button type="submit" className="w-full bg-rc-accent hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors flex justify-center items-center mt-2">
-                                            <i className="fa-solid fa-floppy-disk mr-2"></i>
-                                            Salvează
+                                            <i className="fa-solid fa-floppy-disk mr-2"></i> Salvează
                                         </button>
                                     </form>
                                 </div>
 
-                                {/* Formular Import (Afisat permanent) */}
                                 <div className="glass-panel p-6 rounded-xl shadow-xl">
                                     <h2 className="text-lg font-semibold text-white mb-4"><i className="fa-solid fa-clipboard mr-2"></i>Importă din Market</h2>
                                     <form onSubmit={handleImport} className="space-y-4">
                                         <div>
-                                            <label className="block text-xs font-medium text-rc-muted mb-2">
-                                                Lipește textul copiat direct din Market:
-                                            </label>
-                                            <textarea 
-                                                value={importText}
-                                                onChange={(e) => setImportText(e.target.value)}
-                                                className="input-field w-full rounded-lg px-3 py-2 text-xs font-mono h-32 resize-none"
-                                                placeholder="Legendary Dreamcatcher&#10;1.188 Eh/s | 33%&#10;Quantity: 2&#10;From&#10;136.5 RLT"
-                                                required
-                                            />
+                                            <label className="block text-xs font-medium text-rc-muted mb-2">Lipește textul copiat direct din Market:</label>
+                                            <textarea value={importText} onChange={(e) => setImportText(e.target.value)} className="input-field w-full rounded-lg px-3 py-2 text-xs font-mono h-32 resize-none" placeholder="Legendary Dreamcatcher&#10;1.188 Eh/s | 33%&#10;Quantity: 2&#10;From&#10;136.5 RLT" required />
                                         </div>
                                         <button type="submit" className="w-full bg-rc-highlight hover:bg-green-600 text-white font-medium py-2 px-4 rounded-lg transition-colors flex justify-center items-center mt-2">
-                                            <i className="fa-solid fa-file-import mr-2"></i>
-                                            Importă Datele
+                                            <i className="fa-solid fa-file-import mr-2"></i> Importă Datele
                                         </button>
-                                        
                                         {importMessage.text && (
                                             <div className={`p-2 rounded text-xs font-medium text-center mt-2 ${importMessage.type === 'success' ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
                                                 {importMessage.text}
@@ -530,27 +500,14 @@
                                         )}
                                     </form>
                                 </div>
-                                
-                                <div className="glass-panel p-4 rounded-xl text-sm text-rc-muted leading-relaxed">
-                                    <p><strong>Sfaturi:</strong></p>
-                                    <ul className="list-disc pl-4 mt-2 space-y-1">
-                                        <li><span className="text-rc-highlight">Preț / Ph/s</span> mic înseamnă putere brută ieftină.</li>
-                                        <li><span className="text-rc-highlight">Preț / 1% Bonus</span> mic este esențial pentru conturile cu putere mare de bază.</li>
-                                        <li>Apasă pe capul de tabel pentru a sorta.</li>
-                                    </ul>
-                                </div>
                             </div>
 
-                            {}
                             <div className="lg:col-span-3">
                                 <div className="glass-panel rounded-xl shadow-xl overflow-hidden flex flex-col h-full">
                                     <div className="p-4 border-b border-white/10 flex justify-between items-center bg-rc-panel/30">
                                         <h2 className="text-lg font-semibold text-white"><i className="fa-solid fa-server mr-2"></i>Lista Minere</h2>
                                         {miners.length > 0 && (
-                                            <button 
-                                                onClick={() => setShowClearModal(true)}
-                                                className="text-xs bg-red-500/20 hover:bg-red-500/30 text-red-400 py-1.5 px-3 rounded-lg transition-colors flex items-center border border-red-500/30"
-                                            >
+                                            <button onClick={() => setShowClearModal(true)} className="text-xs bg-red-500/20 hover:bg-red-500/30 text-red-400 py-1.5 px-3 rounded-lg transition-colors flex items-center border border-red-500/30">
                                                 <i className="fa-solid fa-trash-can mr-1.5"></i> Șterge Tot
                                             </button>
                                         )}
@@ -559,34 +516,18 @@
                                         <table className="w-full text-left border-collapse">
                                             <thead>
                                                 <tr className="bg-rc-panel/50 text-xs uppercase tracking-wider text-rc-muted border-b border-white/10">
-                                                    <th className="p-4 font-medium cursor-pointer hover:text-white" onClick={() => handleSort('name')}>
-                                                        Miner <SortIcon columnKey="name" />
-                                                    </th>
-                                                    <th className="p-4 font-medium cursor-pointer hover:text-white" onClick={() => handleSort('powerPh')}>
-                                                        Putere (Ph/s) <SortIcon columnKey="powerPh" />
-                                                    </th>
-                                                    <th className="p-4 font-medium cursor-pointer hover:text-white" onClick={() => handleSort('bonus')}>
-                                                        Bonus % <SortIcon columnKey="bonus" />
-                                                    </th>
-                                                    <th className="p-4 font-medium cursor-pointer hover:text-white" onClick={() => handleSort('price')}>
-                                                        Preț (RLT) <SortIcon columnKey="price" />
-                                                    </th>
-                                                    <th className="p-4 font-medium cursor-pointer hover:text-rc-highlight text-blue-300" onClick={() => handleSort('costPerPh')}>
-                                                        Preț / Ph/s <SortIcon columnKey="costPerPh" />
-                                                    </th>
-                                                    <th className="p-4 font-medium cursor-pointer hover:text-rc-highlight text-purple-300" onClick={() => handleSort('costPerBonus')}>
-                                                        Preț / 1% Bonus <SortIcon columnKey="costPerBonus" />
-                                                    </th>
+                                                    <th className="p-4 font-medium cursor-pointer hover:text-white" onClick={() => handleSort('name')}>Miner <SortIcon columnKey="name" /></th>
+                                                    <th className="p-4 font-medium cursor-pointer hover:text-white" onClick={() => handleSort('powerPh')}>Putere (Ph/s) <SortIcon columnKey="powerPh" /></th>
+                                                    <th className="p-4 font-medium cursor-pointer hover:text-white" onClick={() => handleSort('bonus')}>Bonus % <SortIcon columnKey="bonus" /></th>
+                                                    <th className="p-4 font-medium cursor-pointer hover:text-white" onClick={() => handleSort('price')}>Preț (RLT) <SortIcon columnKey="price" /></th>
+                                                    <th className="p-4 font-medium cursor-pointer hover:text-rc-highlight text-blue-300" onClick={() => handleSort('costPerPh')}>Preț / Ph/s <SortIcon columnKey="costPerPh" /></th>
+                                                    <th className="p-4 font-medium cursor-pointer hover:text-rc-highlight text-purple-300" onClick={() => handleSort('costPerBonus')}>Preț / 1% Bonus <SortIcon columnKey="costPerBonus" /></th>
                                                     <th className="p-4 font-medium text-center">Acțiuni</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-white/5 text-sm">
                                                 {sortedMiners.length === 0 ? (
-                                                    <tr>
-                                                        <td colSpan="7" className="p-8 text-center text-rc-muted">
-                                                            Niciun miner adăugat. Adaugă unul din formularul alăturat.
-                                                        </td>
-                                                    </tr>
+                                                    <tr><td colSpan="7" className="p-8 text-center text-rc-muted">Niciun miner adăugat.</td></tr>
                                                 ) : (
                                                     sortedMiners.map((miner) => (
                                                         <tr key={miner.id} className="table-row-hover transition-colors">
@@ -594,29 +535,17 @@
                                                                 <div className="flex flex-col items-start gap-1.5">
                                                                     <span className="whitespace-nowrap">{renderStyledName(miner.name)}</span>
                                                                     {miner.inCollection && (
-                                                                        <span className="text-[9px] font-bold tracking-wider bg-[#5b528b] text-[#d6cbf5] px-1.5 py-0.5 rounded border border-[#786cae] uppercase shadow-sm">
-                                                                            In Collection
-                                                                        </span>
+                                                                        <span className="text-[9px] font-bold tracking-wider bg-[#5b528b] text-[#d6cbf5] px-1.5 py-0.5 rounded border border-[#786cae] uppercase shadow-sm">In Collection</span>
                                                                     )}
                                                                 </div>
                                                             </td>
                                                             <td className="p-4">{formatNumber(miner.powerPh)} Ph/s</td>
                                                             <td className="p-4">{miner.bonus > 0 ? `${formatNumber(miner.bonus)}%` : '-'}</td>
                                                             <td className="p-4 font-semibold text-yellow-400">{formatNumber(miner.price)} <span className="text-xs font-normal">RLT</span></td>
-                                                            
-                                                            <td className="p-4 font-bold text-blue-400">
-                                                                {miner.costPerPh > 0 ? `${formatNumber(miner.costPerPh)} RLT` : 'N/A'}
-                                                            </td>
-                                                            <td className="p-4 font-bold text-purple-400">
-                                                                {miner.costPerBonus > 0 ? `${formatNumber(miner.costPerBonus)} RLT` : 'N/A'}
-                                                            </td>
-                                                            
+                                                            <td className="p-4 font-bold text-blue-400">{miner.costPerPh > 0 ? `${formatNumber(miner.costPerPh)} RLT` : 'N/A'}</td>
+                                                            <td className="p-4 font-bold text-purple-400">{miner.costPerBonus > 0 ? `${formatNumber(miner.costPerBonus)} RLT` : 'N/A'}</td>
                                                             <td className="p-4 text-center">
-                                                                <button 
-                                                                    onClick={() => handleDelete(miner.id)}
-                                                                    className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded transition-colors"
-                                                                    title="Șterge"
-                                                                >
+                                                                <button onClick={() => setMiners(prev => prev.filter(m => m.id !== miner.id))} className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded transition-colors" title="Șterge">
                                                                     <i className="fa-solid fa-trash"></i>
                                                                 </button>
                                                             </td>
@@ -628,23 +557,17 @@
                                     </div>
                                 </div>
                             </div>
-
                         </div>
 
                         {/* --- TABUL 2: PIESE (CRAFTING) --- */}
                         <div className={`grid grid-cols-1 lg:grid-cols-4 gap-6 animate-[fadeIn_0.3s_ease-out] ${activeTab === 'parts' ? '' : 'hidden'}`}>
                             
-                            {/* Formular Import Piese */}
                             <div className="lg:col-span-1 space-y-4">
                                 <div className="glass-panel p-6 rounded-xl shadow-xl border-t-4 border-t-purple-500">
                                     <h2 className="text-lg font-semibold text-white mb-4"><i className="fa-solid fa-gear mr-2 text-purple-400"></i>Setări Crafting</h2>
                                     
                                     <label className="block text-xs font-medium text-rc-muted mb-2">Nivelul Tău de Reducere</label>
-                                    <select 
-                                        value={craftingLevel} 
-                                        onChange={(e) => setCraftingLevel(parseInt(e.target.value))} 
-                                        className="input-field w-full rounded-lg px-3 py-2 text-sm mb-4 font-medium"
-                                    >
+                                    <select value={craftingLevel} onChange={(e) => setCraftingLevel(parseInt(e.target.value))} className="input-field w-full rounded-lg px-3 py-2 text-sm mb-4 font-medium">
                                         <option value={1}>Nivel 1 (0% Reducere)</option>
                                         <option value={2}>Nivel 2 (5% Reducere)</option>
                                         <option value={3}>Nivel 3 (10% Reducere)</option>
@@ -658,19 +581,11 @@
                                             <label className="block text-xs font-medium text-rc-muted mb-2 leading-relaxed">
                                                 Selectează piesele în Market, dă Copy, apoi Paste aici (ex: "Legendary Hashboard..."):
                                             </label>
-                                            <textarea 
-                                                value={partsImportText}
-                                                onChange={(e) => setPartsImportText(e.target.value)}
-                                                className="input-field w-full rounded-lg px-3 py-2 text-xs font-mono h-32 resize-none"
-                                                placeholder="Legendary Hashboard&#10;Quantity: 889&#10;From&#10;11.445 RLT"
-                                                required
-                                            />
+                                            <textarea value={partsImportText} onChange={(e) => setPartsImportText(e.target.value)} className="input-field w-full rounded-lg px-3 py-2 text-xs font-mono h-32 resize-none" placeholder="Legendary Hashboard&#10;Quantity: 889&#10;From&#10;11.445 RLT" required />
                                         </div>
                                         <button type="submit" className="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex justify-center items-center mt-2 shadow-lg shadow-purple-900/50">
-                                            <i className="fa-solid fa-file-import mr-2"></i>
-                                            Actualizează Prețuri
+                                            <i className="fa-solid fa-file-import mr-2"></i> Actualizează Prețuri
                                         </button>
-                                        
                                         {partsImportMsg && (
                                             <div className={`p-2 rounded text-xs font-medium text-center mt-2 ${partsImportMsg.includes('Eroare') ? 'bg-red-500/20 text-red-300' : 'bg-green-500/20 text-green-300'}`}>
                                                 {partsImportMsg}
@@ -678,21 +593,18 @@
                                         )}
                                     </form>
                                 </div>
-                                
                                 <div className="glass-panel p-4 rounded-xl text-xs text-rc-muted leading-relaxed">
                                     <p><strong>De reținut:</strong></p>
                                     <p className="mt-1">Pentru a calcula o piesă (ex: Epic Wire), calculatorul are nevoie de prețul piesei inferioare (Rare Wire) și de prețul actual al piesei Epic pentru a compara dacă ieși pe <span className="text-green-400 font-bold">plus</span>.</p>
                                 </div>
                             </div>
 
-                            {/* Tabel Rezultate Crafting */}
                             <div className="lg:col-span-3">
                                 <div className="glass-panel rounded-xl shadow-xl overflow-hidden flex flex-col h-full">
                                     <div className="p-4 border-b border-white/10 bg-rc-panel/30">
                                         <h2 className="text-lg font-semibold text-white"><i className="fa-solid fa-code-merge mr-2 text-purple-400"></i>Analiză Detaliată: Cumpără vs. Craftează</h2>
                                     </div>
                                     <div className="overflow-x-auto p-4 space-y-6">
-                                        
                                         {['Wire', 'Fan', 'Hashboard'].map(partType => (
                                             <div key={partType} className="border border-white/10 rounded-lg overflow-hidden bg-rc-dark/30">
                                                 <div className="bg-gradient-to-r from-rc-panel to-rc-panel/50 px-4 py-3 font-bold text-white border-b border-white/10 flex items-center shadow-md">
@@ -753,12 +665,31 @@
                                                 </table>
                                             </div>
                                         ))}
-                                        
                                     </div>
                                 </div>
                             </div>
-
                         </div>
+
                     </div>
                     
-                    {/* Fereastra modala de confirmare (Valabilă doar pentru minere) */}
+                    {showClearModal && (
+                        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                            <div className="glass-panel p-6 rounded-xl max-w-sm w-full shadow-2xl animate-[fadeIn_0.2s_ease-out]">
+                                <h3 className="text-lg font-bold text-white mb-2"><i className="fa-solid fa-triangle-exclamation text-red-500 mr-2"></i>Confirmare Ștergere</h3>
+                                <p className="text-sm text-rc-muted mb-6">Ești sigur că vrei să ștergi toți minerele din listă? Această acțiune nu poate fi anulată.</p>
+                                <div className="flex justify-end space-x-3">
+                                    <button onClick={() => setShowClearModal(false)} className="px-4 py-2 text-sm font-medium text-white bg-white/10 hover:bg-white/20 rounded-lg transition-colors">Anulează</button>
+                                    <button onClick={() => { setMiners([]); setShowClearModal(false); }} className="px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors shadow-lg shadow-red-500/30">Șterge Tot</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
