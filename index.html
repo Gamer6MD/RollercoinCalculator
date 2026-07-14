@@ -5,395 +5,252 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RollerCoin Profit Calculator</title>
     
-    <!-- React & Tailwind CSS via CDN -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
     <script>
         tailwind.config = {
             theme: {
                 extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
                     colors: {
                         rc: {
-                            dark: '#0f172a',
-                            panel: '#1e293b',
-                            accent: '#3b82f6',
-                            highlight: '#10b981',
-                            text: '#f8fafc',
-                            muted: '#94a3b8'
+                            bg: '#121629',
+                            panel: '#1E2336',
+                            card: '#2A3047',
+                            accent: '#4FD1C5',
+                            text: '#E2E8F0',
+                            muted: '#94A3B8',
                         }
-                    },
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
                     }
                 }
             }
         }
     </script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #0f172a;
-            color: #f8fafc;
-        }
+        body { background-color: #121629; color: #E2E8F0; }
+        .glass-panel { background: rgba(30, 35, 54, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.05); }
+        .input-field { background-color: #2A3047; border: 1px solid #3F4660; color: white; transition: all 0.2s; }
+        .input-field:focus { outline: none; border-color: #4FD1C5; box-shadow: 0 0 0 2px rgba(79, 209, 197, 0.2); }
         
+        /* Custom scrollbar */
         ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #1e293b; }
-        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
-
-        .glass-panel {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .input-field {
-            background: rgba(15, 23, 42, 0.6);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            color: white;
-            transition: all 0.2s;
-        }
-        .input-field:focus {
-            outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
-        }
-        
-        .table-row-hover:hover { background-color: rgba(59, 130, 246, 0.05); }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: scale(0.95); }
-            to { opacity: 1; transform: scale(1); }
-        }
+        ::-webkit-scrollbar-track { background: #121629; }
+        ::-webkit-scrollbar-thumb { background: #3F4660; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4FD1C5; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
-
         const INITIAL_MINERS = [];
-        
-        // Structura initiala pentru piese
         const INITIAL_PARTS = {
-            Wire: { Common: 0, Uncommon: 0, Rare: 0, Epic: 0, Legendary: 0 },
-            Fan: { Common: 0, Uncommon: 0, Rare: 0, Epic: 0, Legendary: 0 },
-            Hashboard: { Common: 0, Uncommon: 0, Rare: 0, Epic: 0, Legendary: 0 }
+            'Hashboard': { Common: 0, Uncommon: 0, Rare: 0, Epic: 0, Legendary: 0 },
+            'Wire': { Common: 0, Uncommon: 0, Rare: 0, Epic: 0, Legendary: 0 },
+            'Fan': { Common: 0, Uncommon: 0, Rare: 0, Epic: 0, Legendary: 0 }
+        };
+        const INITIAL_INVENTORY = {
+            'Hashboard': { Common: 0, Uncommon: 0, Rare: 0, Epic: 0, Legendary: 0 },
+            'Wire': { Common: 0, Uncommon: 0, Rare: 0, Epic: 0, Legendary: 0 },
+            'Fan': { Common: 0, Uncommon: 0, Rare: 0, Epic: 0, Legendary: 0 }
         };
 
-        const formatNumber = (num) => {
-            return new Intl.NumberFormat('ro-RO', { maximumFractionDigits: 5 }).format(num);
-        };
+        const MULTIPLIERS = { 'Gh/s': 1 / 1000000, 'Th/s': 1 / 1000, 'Ph/s': 1, 'Eh/s': 1000 };
 
-        const calculateMetrics = (miner) => {
-            const powerPh = miner.power / 1000000;
-            const powerTh = miner.power / 1000;
-            const costPerPh = powerPh > 0 ? (miner.price / powerPh) : 0;
-            const costPerBonus = miner.bonus > 0 ? (miner.price / miner.bonus) : 0;
-            const thPerRlt = miner.price > 0 ? (powerTh / miner.price) : 0;
-            return { ...miner, powerPh, costPerPh, costPerBonus, thPerRlt };
-        };
+        function App() {
+            // Main Tabs
+            const [activeTab, setActiveTab] = React.useState('miners'); // 'miners' or 'parts'
 
-        const parseMarketPaste = (text) => {
-            const lines = text.split('\n').map(l => l.trim()).filter(l => l !== '');
-            const parsedMiners = [];
-            
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
-                const powerMatch = line.match(/([\d.,]+)\s*(Gh\/s|Th\/s|Ph\/s|Eh\/s)/i);
-                
-                if (powerMatch) {
-                    let nameOffset = 1;
-                    while(i - nameOffset >= 0 && (
-                        lines[i-nameOffset].toLowerCase() === 'in collection' || 
-                        lines[i-nameOffset].toLowerCase().startsWith('from') || 
-                        lines[i-nameOffset].toLowerCase().startsWith('quantity')
-                    )) {
-                        nameOffset++;
-                    }
-                    
-                    let name = i - nameOffset >= 0 ? lines[i-nameOffset] : "Miner Necunoscut";
-                    let inCollection = false;
-                    if (lines[i+1] && lines[i+1].toLowerCase().startsWith('quantity')) {
-                        if (lines[i-nameOffset+1] && lines[i-nameOffset+1].toLowerCase() === 'in collection') {
-                            inCollection = true;
-                        }
-                        if (lines[i+3] && lines[i+3].toLowerCase() === 'in collection') {
-                             inCollection = true;
-                        }
-                    }
-
-                    let power = parseFloat(powerMatch[1].replace(/,/g, ''));
-                    let unit = powerMatch[2].toLowerCase();
-                    if (unit === 'gh/s') power *= 1;
-                    else if (unit === 'th/s') power *= 1000;
-                    else if (unit === 'ph/s') power *= 1000000;
-                    else if (unit === 'eh/s') power *= 1000000000;
-
-                    let bonus = 0;
-                    const bonusMatch = line.match(/\|\s*([\d.,]+)\s*%/);
-                    if (bonusMatch) {
-                        bonus = parseFloat(bonusMatch[1].replace(/,/g, ''));
-                    }
-
-                    let price = 0;
-                    for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
-                        if (lines[j].toLowerCase().includes('rlt')) {
-                            const priceMatch = lines[j].match(/([\d.,]+)\s*rlt/i);
-                            if (priceMatch) {
-                                price = parseFloat(priceMatch[1].replace(/,/g, ''));
-                                break;
-                            }
-                        }
-                    }
-
-                    if (price > 0) {
-                        parsedMiners.push({
-                            id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-                            name, power, bonus, price, inCollection
-                        });
-                    }
-                }
-            }
-            return parsedMiners;
-        };
-
-        const parsePartsPaste = (text) => {
-            const lines = text.split('\n').map(l => l.trim()).filter(l => l !== '');
-            const parsedParts = [];
-            
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
-                
-                // Căutăm linii care conțin raritatea și tipul piesei (ex: "Legendary Hashboard")
-                if (line.match(/(Common|Uncommon|Rare|Epic|Legendary)\s+(Wire|Fan|Hashboard)/i)) {
-                    const match = line.match(/(Common|Uncommon|Rare|Epic|Legendary)\s+(Wire|Fan|Hashboard)/i);
-                    const rarity = match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase(); // Normalize
-                    const type = match[2].charAt(0).toUpperCase() + match[2].slice(1).toLowerCase(); // Normalize
-                    
-                    let price = 0;
-                    // Căutăm prețul în următoarele 3-4 rânduri
-                    for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
-                        if (lines[j].toLowerCase().includes('rlt')) {
-                            const priceMatch = lines[j].match(/([\d.,]+)\s*rlt/i);
-                            if (priceMatch) {
-                                price = parseFloat(priceMatch[1].replace(/,/g, ''));
-                                break;
-                            }
-                        }
-                    }
-                    
-                    if (price > 0) {
-                        parsedParts.push({ type, rarity, price });
-                    }
-                }
-            }
-            return parsedParts;
-        };
-
-        const App = () => {
-            const [activeTab, setActiveTab] = useState('miners');
-            
-            // --- STATE MINERE ---
-            const [miners, setMiners] = useState(() => {
+            // Miners State
+            const [miners, setMiners] = React.useState(() => {
                 const saved = localStorage.getItem('rc_miners');
                 return saved ? JSON.parse(saved) : INITIAL_MINERS;
             });
-            const [formData, setFormData] = useState({ name: '', power: '', powerUnit: 'Gh/s', bonus: '', price: '', inCollection: false });
-            const [importText, setImportText] = useState('');
-            const [importMessage, setImportMessage] = useState({ text: '', type: '' });
-            const [sortConfig, setSortConfig] = useState({ key: 'costPerPh', direction: 'asc' });
-            const [showClearModal, setShowClearModal] = useState(false);
+            const [manualForm, setManualForm] = React.useState({ name: '', power: '', unit: 'Ph/s', bonus: '', price: '', inCollection: false });
+            const [marketImportText, setMarketImportText] = React.useState('');
+            const [marketImportMsg, setMarketImportMsg] = React.useState('');
+            const [sortConfig, setSortConfig] = React.useState({ key: 'pricePerPhs', direction: 'asc' });
 
-            // --- STATE PIESE ---
-            const [parts, setParts] = useState(() => {
+            // Parts State
+            const [partsLevel, setPartsLevel] = React.useState(1);
+            const [partsMode, setPartsMode] = React.useState('sell'); // 'buy' or 'sell'
+            
+            const [partsData, setPartsData] = React.useState(() => {
                 const saved = localStorage.getItem('rc_parts');
                 return saved ? JSON.parse(saved) : INITIAL_PARTS;
             });
-            const [craftingLevel, setCraftingLevel] = useState(() => {
-                const saved = localStorage.getItem('rc_crafting_level');
-                return saved ? parseInt(saved) : 1;
+            const [inventoryData, setInventoryData] = React.useState(() => {
+                const saved = localStorage.getItem('rc_inventory');
+                return saved ? JSON.parse(saved) : INITIAL_INVENTORY;
             });
-            const [partsImportText, setPartsImportText] = useState('');
-            const [partsImportMsg, setPartsImportMsg] = useState('');
-            const [partsMode, setPartsMode] = useState('buy'); // 'buy' sau 'sell'
 
-            useEffect(() => { localStorage.setItem('rc_miners', JSON.stringify(miners)); }, [miners]);
-            useEffect(() => { localStorage.setItem('rc_parts', JSON.stringify(parts)); }, [parts]);
-            useEffect(() => { localStorage.setItem('rc_crafting_level', craftingLevel.toString()); }, [craftingLevel]);
+            const [partsImportText, setPartsImportText] = React.useState('');
+            const [partsImportMsg, setPartsImportMsg] = React.useState('');
+            const [invImportText, setInvImportText] = React.useState('');
+            const [invImportMsg, setInvImportMsg] = React.useState('');
 
-            const handleInputChange = (e) => {
-                const { name, type, checked, value } = e.target;
-                setFormData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+            React.useEffect(() => {
+                localStorage.setItem('rc_miners', JSON.stringify(miners));
+            }, [miners]);
+
+            React.useEffect(() => {
+                localStorage.setItem('rc_parts', JSON.stringify(partsData));
+            }, [partsData]);
+
+            React.useEffect(() => {
+                localStorage.setItem('rc_inventory', JSON.stringify(inventoryData));
+            }, [inventoryData]);
+
+            const formatNumber = (num, decimals = 3) => {
+                if (num === null || num === undefined || isNaN(num)) return '-';
+                return num.toLocaleString('ro-RO', { maximumFractionDigits: decimals, minimumFractionDigits: 0 });
             };
 
-            const handleAddMiner = (e) => {
+            const getColorForRarity = (name) => {
+                const n = name.toLowerCase();
+                if (n.includes('unreal')) return 'text-red-400';
+                if (n.includes('legendary')) return 'text-yellow-400';
+                if (n.includes('epic')) return 'text-fuchsia-400';
+                if (n.includes('rare')) return 'text-blue-400';
+                if (n.includes('uncommon')) return 'text-green-400';
+                return 'text-white';
+            };
+
+            const parseMarketPaste = (text) => {
+                const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                const newMiners = [];
+                
+                for (let i = 0; i < lines.length; i++) {
+                    if (lines[i].includes('|') && (lines[i].includes('Ph/s') || lines[i].includes('Th/s') || lines[i].includes('Gh/s') || lines[i].includes('Eh/s'))) {
+                        let nameOffset = 1;
+                        let inCollection = false;
+
+                        if (i - 1 >= 0 && lines[i - 1].toUpperCase() === 'IN COLLECTION') {
+                            inCollection = true;
+                            nameOffset = 2;
+                        }
+                        
+                        let name = (i - nameOffset >= 0) ? lines[i - nameOffset] : 'Miner Necunoscut';
+                        
+                        const powerStr = lines[i].split('|')[0].trim();
+                        const bonusStr = lines[i].split('|')[1].trim();
+                        
+                        const powerMatch = powerStr.match(/([\d\.,]+)\s*(Gh\/s|Th\/s|Ph\/s|Eh\/s)/i);
+                        const bonusMatch = bonusStr.match(/([\d\.,]+)\s*%/);
+                        
+                        let price = 0;
+                        for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
+                            if (lines[j].includes('RLT')) {
+                                const pMatch = lines[j].match(/([\d\.,]+)\s*RLT/i);
+                                if (pMatch) {
+                                    price = parseFloat(pMatch[1].replace(/,/g, ''));
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (powerMatch && bonusMatch && price > 0) {
+                            const powerVal = parseFloat(powerMatch[1].replace(/,/g, ''));
+                            const unit = powerMatch[2];
+                            const bonusVal = parseFloat(bonusMatch[1].replace(/,/g, ''));
+                            
+                            const normalizedPower = powerVal * MULTIPLIERS[unit];
+                            
+                            newMiners.push({
+                                id: Date.now() + Math.random(),
+                                name,
+                                originalPower: powerVal,
+                                unit,
+                                powerPhs: normalizedPower,
+                                bonus: bonusVal,
+                                price,
+                                inCollection,
+                                pricePerPhs: price / normalizedPower,
+                                pricePerBonus: bonusVal > 0 ? price / bonusVal : null
+                            });
+                        }
+                    }
+                }
+                return newMiners;
+            };
+
+            const handleManualSubmit = (e) => {
                 e.preventDefault();
-                if (!formData.name || !formData.power || !formData.price) return;
-                let powerInGhs = parseFloat(formData.power);
-                if (formData.powerUnit === 'Th/s') powerInGhs *= 1000;
-                if (formData.powerUnit === 'Ph/s') powerInGhs *= 1000000;
-                if (formData.powerUnit === 'Eh/s') powerInGhs *= 1000000000;
-
+                const p = parseFloat(manualForm.power);
+                const b = parseFloat(manualForm.bonus);
+                const pr = parseFloat(manualForm.price);
+                const normPower = p * MULTIPLIERS[manualForm.unit];
+                
                 const newMiner = {
-                    id: Date.now().toString(),
-                    name: formData.name.trim(),
-                    power: powerInGhs,
-                    bonus: parseFloat(formData.bonus) || 0,
-                    price: parseFloat(formData.price),
-                    inCollection: formData.inCollection
+                    id: Date.now(),
+                    name: manualForm.name,
+                    originalPower: p,
+                    unit: manualForm.unit,
+                    powerPhs: normPower,
+                    bonus: b,
+                    price: pr,
+                    inCollection: manualForm.inCollection,
+                    pricePerPhs: pr / normPower,
+                    pricePerBonus: b > 0 ? pr / b : null
                 };
-
+                
                 setMiners(prev => {
-                    const existingIndex = prev.findIndex(m => m.name.trim().toLowerCase() === newMiner.name.toLowerCase());
-                    if (existingIndex !== -1) {
-                        const updatedList = [...prev];
-                        updatedList[existingIndex] = { ...updatedList[existingIndex], power: newMiner.power, bonus: newMiner.bonus, price: newMiner.price, inCollection: newMiner.inCollection || updatedList[existingIndex].inCollection };
-                        return updatedList;
+                    const existingIndex = prev.findIndex(m => m.name.toLowerCase() === newMiner.name.toLowerCase());
+                    if (existingIndex >= 0) {
+                        const updated = [...prev];
+                        newMiner.inCollection = newMiner.inCollection || updated[existingIndex].inCollection;
+                        updated[existingIndex] = newMiner;
+                        return updated;
                     }
                     return [...prev, newMiner];
                 });
-                setFormData({ name: '', power: '', powerUnit: 'Gh/s', bonus: '', price: '', inCollection: false });
+                setManualForm({ name: '', power: '', unit: 'Ph/s', bonus: '', price: '', inCollection: false });
             };
 
-            const handleImport = (e) => {
+            const handleMarketImport = (e) => {
                 e.preventDefault();
-                if (!importText.trim()) return;
-                
-                const newMiners = parseMarketPaste(importText);
-                if (newMiners.length > 0) {
+                const parsed = parseMarketPaste(marketImportText);
+                if (parsed.length > 0) {
                     setMiners(prev => {
-                        let updatedMiners = [...prev];
-                        let addedCount = 0;
+                        const updatedMiners = [...prev];
                         let updatedCount = 0;
+                        let addedCount = 0;
 
-                        newMiners.forEach(newMiner => {
-                            const existingIndex = updatedMiners.findIndex(m => m.name.trim().toLowerCase() === newMiner.name.trim().toLowerCase());
-                            if (existingIndex !== -1) {
-                                updatedMiners[existingIndex] = { ...updatedMiners[existingIndex], power: newMiner.power, bonus: newMiner.bonus, price: newMiner.price, inCollection: newMiner.inCollection || updatedMiners[existingIndex].inCollection };
+                        parsed.forEach(newM => {
+                            const existingIndex = updatedMiners.findIndex(m => m.name.toLowerCase() === newM.name.toLowerCase());
+                            if (existingIndex >= 0) {
+                                newM.inCollection = newM.inCollection || updatedMiners[existingIndex].inCollection;
+                                updatedMiners[existingIndex] = newM;
                                 updatedCount++;
                             } else {
-                                updatedMiners.push(newMiner);
+                                updatedMiners.push(newM);
                                 addedCount++;
                             }
                         });
-
-                        let msgs = [];
-                        if (addedCount > 0) msgs.push(`${addedCount} adăugate.`);
-                        if (updatedCount > 0) msgs.push(`${updatedCount} actualizate.`);
-                        setImportMessage({ text: `Succes: ${msgs.join(' ')}`, type: 'success' });
+                        
+                        setMarketImportMsg(`Importat: ${addedCount} noi, ${updatedCount} actualizate.`);
                         return updatedMiners;
                     });
-                    setImportText('');
+                    setMarketImportText('');
+                    setTimeout(() => setMarketImportMsg(''), 4000);
                 } else {
-                    setImportMessage({ text: 'Nu s-a putut detecta niciun miner. Asigură-te că ai copiat corect textul.', type: 'error' });
-                }
-                setTimeout(() => setImportMessage({ text: '', type: '' }), 5000);
-            };
-
-            const handlePartsImport = (e) => {
-                e.preventDefault();
-                if (!partsImportText.trim()) return;
-
-                const parsed = parsePartsPaste(partsImportText);
-                if (parsed.length > 0) {
-                    setParts(prev => {
-                        const newParts = { ...prev };
-                        parsed.forEach(p => {
-                            if (newParts[p.type] && newParts[p.type][p.rarity] !== undefined) {
-                                newParts[p.type][p.rarity] = p.price;
-                            }
-                        });
-                        return newParts;
-                    });
-                    setPartsImportMsg(`Succes: S-au actualizat prețurile pentru ${parsed.length} piese.`);
-                    setPartsImportText('');
-                } else {
-                    setPartsImportMsg("Eroare: Nu s-a putut detecta nicio piesă. Verifică textul.");
-                }
-                setTimeout(() => setPartsImportMsg(''), 5000);
-            };
-
-            const getDiscountPercent = (level) => {
-                switch(level) {
-                    case 1: return 0;
-                    case 2: return 5;
-                    case 3: return 10;
-                    case 4: return 15;
-                    case 5: return 25;
-                    default: return 0;
+                    setMarketImportMsg('Eroare: Nu s-a putut detecta niciun miner. Asigură-te că ai copiat corect textul.');
                 }
             };
 
-            const calculateCrafting = (type, targetRarity) => {
-                const p = parts[type];
-                let cost = 0;
-                let prevRarity = '';
-                let baseParts = 0;
-                let baseFee = 0;
-                let canCalculate = false;
+            const handleDelete = (id) => {
+                setMiners(miners.filter(m => m.id !== id));
+            };
 
-                const discountPercent = getDiscountPercent(craftingLevel);
-                const discountMultiplier = 1 - (discountPercent / 100);
-
-                if (targetRarity === 'Uncommon') {
-                    prevRarity = 'Common'; baseParts = 50; baseFee = 0.005;
-                } else if (targetRarity === 'Rare') {
-                    prevRarity = 'Uncommon'; baseParts = 20; baseFee = 0.05;
-                } else if (targetRarity === 'Epic') {
-                    prevRarity = 'Rare'; baseParts = 10; baseFee = 0.75;
-                } else if (targetRarity === 'Legendary') {
-                    prevRarity = 'Epic'; baseParts = 5; baseFee = 0.75;
+            const clearMiners = () => {
+                if(window.confirm("Ești sigur că vrei să ștergi toate minerele?")) {
+                    setMiners([]);
                 }
-
-                // Aici aplicăm reducerea și la numărul de piese (rotunjit în sus, exact ca în joc. Ex: 47.5 -> 48)
-                const partsNeeded = Math.ceil(baseParts * discountMultiplier);
-                const feeCost = baseFee * discountMultiplier;
-
-                const marketPrice = p[targetRarity] ? p[targetRarity] : 0;
-                const prevMarketPrice = (prevRarity && p[prevRarity]) ? p[prevRarity] : 0;
-
-                // Deducem taxa de 5% percepută de joc (calcul invers corect)
-                const netTarget = marketPrice / 1.05;
-                const netPrev = prevMarketPrice / 1.05;
-                
-                const isCommonStep = targetRarity === 'Uncommon';
-                const isCommonUntradeable = isCommonStep; 
-                const isCommonFree = isCommonStep && prevMarketPrice === 0;
-
-                if (prevRarity) {
-                    if (isCommonFree) {
-                        cost = feeCost;
-                        canCalculate = true;
-                    } else if (prevMarketPrice > 0) {
-                        cost = (partsNeeded * prevMarketPrice) + feeCost;
-                        canCalculate = true;
-                    }
-                }
-
-                const isCraftingCheaper = canCalculate && marketPrice > 0 && cost < marketPrice;
-                const savings = canCalculate && marketPrice > 0 ? (marketPrice - cost) : 0;
-
-                // Dacă piesele Common sunt netranzacționabile din cutii RST, valoarea lor brută la vânzare e 0.
-                const sellRawValue = isCommonUntradeable ? 0 : (partsNeeded * netPrev);
-                const sellCraftedValue = netTarget - feeCost; 
-                
-                const isMergeProfitable = canCalculate && marketPrice > 0 && (sellCraftedValue > sellRawValue);
-                const sellProfitDiff = (canCalculate && marketPrice > 0) ? (sellCraftedValue - sellRawValue) : 0;
-
-                return { 
-                    canCalculate, cost, prevRarity, partsNeeded, baseFee, feeCost, marketPrice, isCraftingCheaper, savings,
-                    netTarget, netPrev, sellRawValue, sellCraftedValue, isMergeProfitable, sellProfitDiff,
-                    isCommonUntradeable, isCommonFree
-                };
             };
 
             const handleSort = (key) => {
@@ -402,392 +259,572 @@
                 setSortConfig({ key, direction });
             };
 
-            const sortedMiners = useMemo(() => {
-                let sortableItems = miners.map(calculateMetrics);
-                if (sortConfig !== null) {
-                    sortableItems.sort((a, b) => {
-                        if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
-                        if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
-                        return 0;
-                    });
-                }
-                return sortableItems;
-            }, [miners, sortConfig]);
+            const sortedMiners = [...miners].sort((a, b) => {
+                if (a[sortConfig.key] === null) return 1;
+                if (b[sortConfig.key] === null) return -1;
+                if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
+                if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
 
-            const SortIcon = ({ columnKey }) => {
-                if (sortConfig.key !== columnKey) return <i className="fa-solid fa-sort inline ml-1 opacity-30"></i>;
-                return sortConfig.direction === 'asc' ? <i className="fa-solid fa-sort-up inline ml-1 text-rc-accent"></i> : <i className="fa-solid fa-sort-down inline ml-1 text-rc-accent"></i>;
+            const parsePartsPaste = (text) => {
+                const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                const newData = { ...partsData };
+                let imported = 0;
+
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    if (line.includes('Hashboard') || line.includes('Wire') || line.includes('Fan')) {
+                        const words = line.split(' ');
+                        const rarity = words[0]; // Common, Uncommon, etc.
+                        const type = words[1]; // Hashboard, Wire, Fan
+
+                        if (['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'].includes(rarity) && ['Hashboard', 'Wire', 'Fan'].includes(type)) {
+                            for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
+                                if (lines[j].includes('RLT')) {
+                                    const pMatch = lines[j].match(/([\d\.,]+)\s*RLT/i);
+                                    if (pMatch) {
+                                        const price = parseFloat(pMatch[1].replace(/,/g, ''));
+                                        newData[type][rarity] = price;
+                                        imported++;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                return { newData, imported };
             };
 
-            const renderStyledName = (name) => {
-                const words = name.split(' ');
-                const firstWord = words[0].toLowerCase();
-                let colorClass = '';
-                switch (firstWord) {
-                    case 'uncommon': colorClass = 'text-green-400'; break;
-                    case 'rare': colorClass = 'text-blue-400'; break;
-                    case 'epic': colorClass = 'text-fuchsia-400'; break;
-                    case 'legendary': colorClass = 'text-yellow-400'; break;
-                    case 'unreal': colorClass = 'text-red-500'; break;
+            const parseInvPaste = (text) => {
+                const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                const newInv = { ...inventoryData };
+                let imported = 0;
+
+                for (let i = 0; i < lines.length - 2; i++) {
+                    const rarity = lines[i];
+                    const type = lines[i+1];
+                    
+                    if (['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'].includes(rarity) && ['Hashboard', 'Wire', 'Fan'].includes(type)) {
+                        if (lines[i+2] === 'Quantity:') {
+                            const qty = parseInt(lines[i+3].replace(/\s/g, ''), 10);
+                            if (!isNaN(qty)) {
+                                newInv[type][rarity] = qty;
+                                imported++;
+                            }
+                        }
+                    }
                 }
-                if (colorClass) {
-                    return <><span className={colorClass}>{words[0]}</span>{' '}{words.slice(1).join(' ')}</>;
-                }
-                return name;
+                return { newInv, imported };
             };
 
-            const renderPartColor = (rarity) => {
-                switch (rarity.toLowerCase()) {
-                    case 'uncommon': return 'text-green-400';
-                    case 'rare': return 'text-blue-400';
-                    case 'epic': return 'text-fuchsia-400';
-                    case 'legendary': return 'text-yellow-400';
-                    default: return 'text-white';
+            const handlePartsImport = (e) => {
+                e.preventDefault();
+                const { newData, imported } = parsePartsPaste(partsImportText);
+                if (imported > 0) {
+                    setPartsData(newData);
+                    setPartsImportMsg(`Succes: S-au actualizat ${imported} prețuri.`);
+                    setPartsImportText('');
+                } else {
+                    setPartsImportMsg('Eroare: Nu s-a detectat niciun preț valid.');
                 }
+                setTimeout(() => setPartsImportMsg(''), 4000);
+            };
+
+            const handleInvImport = (e) => {
+                e.preventDefault();
+                const { newInv, imported } = parseInvPaste(invImportText);
+                if (imported > 0) {
+                    setInventoryData(newInv);
+                    setInvImportMsg(`Succes: S-au actualizat ${imported} cantități de inventar.`);
+                    setInvImportText('');
+                } else {
+                    setInvImportMsg('Eroare: Format invalid de inventar.');
+                }
+                setTimeout(() => setInvImportMsg(''), 4000);
+            };
+
+            const calculateCrafting = (type) => {
+                const baseRequirements = {
+                    'Uncommon': { prev: 'Common', qty: 50, fee: 0.005 },
+                    'Rare': { prev: 'Uncommon', qty: 20, fee: 0.05 },
+                    'Epic': { prev: 'Rare', qty: 10, fee: 0.75 },
+                    'Legendary': { prev: 'Epic', qty: 5, fee: 0.75 }
+                };
+
+                const discounts = { 1: 0, 2: 0.05, 3: 0.10, 4: 0.15, 5: 0.20, 6: 0.25 };
+                const discount = discounts[partsLevel];
+
+                let results = {};
+
+                ['Uncommon', 'Rare', 'Epic', 'Legendary'].forEach(rarity => {
+                    const req = baseRequirements[rarity];
+                    
+                    // RollerCoin rounds UP required parts (e.g. 50 - 5% = 47.5 -> 48)
+                    const partsNeeded = Math.ceil(req.qty * (1 - discount));
+                    const prevPrice = partsData[type][req.prev];
+                    const targetPrice = partsData[type][rarity];
+                    const invPrevQty = inventoryData[type][req.prev];
+
+                    if (partsMode === 'buy') {
+                        // BUY MODE LOGIC
+                        let cost = 0;
+                        let canCalculate = false;
+                        let isCommonFree = false;
+
+                        if (req.prev === 'Common' && prevPrice === 0) {
+                            // User opens RST boxes, Common is free
+                            cost = req.fee;
+                            canCalculate = true;
+                            isCommonFree = true;
+                        } else if (prevPrice > 0) {
+                            cost = (partsNeeded * prevPrice) + req.fee;
+                            canCalculate = true;
+                        }
+
+                        results[rarity] = {
+                            canCalculate,
+                            cost,
+                            marketPrice: targetPrice,
+                            savings: targetPrice - cost,
+                            isCraftingCheaper: cost < targetPrice,
+                            partsNeeded,
+                            feeCost: req.fee,
+                            prevRarity: req.prev,
+                            isCommonFree,
+                            invPrevQty,
+                            maxCraftable: Math.floor(invPrevQty / partsNeeded)
+                        };
+
+                    } else {
+                        // SELL MODE LOGIC
+                        const feeMultiplier = 1.05; // Reverse fee calc: Price / 1.05
+                        
+                        // Net values if you sell on market
+                        const netPrev = prevPrice > 0 ? prevPrice / feeMultiplier : 0;
+                        const netTarget = targetPrice > 0 ? targetPrice / feeMultiplier : 0;
+                        
+                        let canCalculate = (targetPrice > 0);
+                        let isCommonUntradeable = (req.prev === 'Common');
+
+                        // Sell 50x raw materials vs Merge & Sell 1x target
+                        const sellRawValue = isCommonUntradeable ? 0 : partsNeeded * netPrev;
+                        const sellCraftedValue = netTarget - req.fee;
+                        
+                        const profitDiff = sellCraftedValue - sellRawValue;
+
+                        // Total generation based on inventory
+                        const maxCraftable = Math.floor(invPrevQty / partsNeeded);
+                        const totalRawSellValue = maxCraftable * (partsNeeded * netPrev);
+                        const totalCraftedSellValue = maxCraftable * sellCraftedValue;
+
+                        results[rarity] = {
+                            canCalculate,
+                            netPrev,
+                            netTarget,
+                            sellRawValue,
+                            sellCraftedValue,
+                            profitDiff,
+                            isMergeBetter: profitDiff > 0 || isCommonUntradeable, // Always merge Commons
+                            isCommonUntradeable,
+                            partsNeeded,
+                            feeCost: req.fee,
+                            prevRarity: req.prev,
+                            marketPrice: targetPrice,
+                            invPrevQty,
+                            maxCraftable,
+                            totalRawSellValue,
+                            totalCraftedSellValue
+                        };
+                    }
+                });
+
+                return results;
             };
 
             return (
                 <div className="min-h-screen p-4 md:p-8">
-                    <div className="max-w-7xl mx-auto space-y-8">
+                    <div className="max-w-7xl mx-auto">
                         
-                        <header className="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0 mb-8 border-b border-white/10 pb-6">
-                            <div className="flex items-center space-x-3">
-                                <i className="fa-solid fa-calculator text-3xl text-rc-accent"></i>
-                                <div>
-                                    <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white">RollerCoin Profit Calculator</h1>
-                                    <p className="text-rc-muted text-sm mt-1">Analizează minerele și costurile de crafting pentru componente.</p>
+                        <header className="mb-8 border-b border-rc-card pb-4">
+                            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                                <div className="flex items-center gap-3 text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-rc-accent">
+                                    <i className="fa-solid fa-calculator text-rc-accent"></i>
+                                    RollerCoin Pro
                                 </div>
-                            </div>
-                            
-                            <div className="flex bg-rc-dark/50 p-1 rounded-lg border border-white/10 w-fit shadow-inner">
-                                <button onClick={() => setActiveTab('miners')} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'miners' ? 'bg-rc-accent text-white shadow' : 'text-rc-muted hover:text-white hover:bg-white/5'}`}>
-                                    <i className="fa-solid fa-server mr-2"></i>Minere
-                                </button>
-                                <button onClick={() => setActiveTab('parts')} className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'parts' ? 'bg-purple-600 text-white shadow' : 'text-rc-muted hover:text-white hover:bg-white/5'}`}>
-                                    <i className="fa-solid fa-hammer mr-2"></i>Crafting Piese
-                                </button>
+                                <div className="flex gap-2 bg-rc-card p-1 rounded-lg">
+                                    <button 
+                                        onClick={() => setActiveTab('miners')}
+                                        className={`px-4 py-2 rounded-md font-medium transition-all ${activeTab === 'miners' ? 'bg-rc-accent text-rc-bg' : 'text-rc-muted hover:text-white'}`}>
+                                        <i className="fa-solid fa-server mr-2"></i>Minere
+                                    </button>
+                                    <button 
+                                        onClick={() => setActiveTab('parts')}
+                                        className={`px-4 py-2 rounded-md font-medium transition-all ${activeTab === 'parts' ? 'bg-rc-accent text-rc-bg' : 'text-rc-muted hover:text-white'}`}>
+                                        <i className="fa-solid fa-microchip mr-2"></i>Crafting Piese
+                                    </button>
+                                </div>
                             </div>
                         </header>
 
-                        {/* --- TABUL 1: MINERE --- */}
-                        <div className={`grid grid-cols-1 lg:grid-cols-4 gap-6 animate-[fadeIn_0.3s_ease-out] ${activeTab === 'miners' ? '' : 'hidden'}`}>
-                            
-                            <div className="lg:col-span-1 space-y-4">
-                                <div className="glass-panel p-6 rounded-xl shadow-xl">
-                                    <h2 className="text-lg font-semibold text-white mb-4"><i className="fa-solid fa-pen mr-2"></i>Adăugare Manuală</h2>
-                                    <form onSubmit={handleAddMiner} className="space-y-4">
-                                        <div>
-                                            <label className="block text-xs font-medium text-rc-muted mb-1">Nume Miner</label>
-                                            <input type="text" name="name" value={formData.name} onChange={handleInputChange} className="input-field w-full rounded-lg px-3 py-2 text-sm" placeholder="ex: El Monstro" required />
-                                        </div>
-                                        <div className="flex space-x-2">
-                                            <div className="flex-1">
-                                                <label className="block text-xs font-medium text-rc-muted mb-1">Putere</label>
-                                                <input type="number" step="any" name="power" value={formData.power} onChange={handleInputChange} className="input-field w-full rounded-lg px-3 py-2 text-sm" placeholder="ex: 5.5" required />
+                        {}
+                        {activeTab === 'miners' && (
+                            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                                <div className="space-y-6">
+                                    <div className="glass-panel p-5 rounded-xl shadow-xl">
+                                        <h2 className="text-lg font-semibold text-white mb-4"><i className="fa-solid fa-pen mr-2 text-rc-accent"></i>Adăugare Manuală</h2>
+                                        <form onSubmit={handleManualSubmit} className="space-y-4">
+                                            <div>
+                                                <label className="block text-xs font-medium text-rc-muted mb-1">Nume Miner</label>
+                                                <input type="text" required value={manualForm.name} onChange={e => setManualForm({...manualForm, name: e.target.value})} className="input-field w-full rounded-lg px-3 py-2 text-sm" placeholder="ex: El Monstro" />
                                             </div>
-                                            <div className="w-24">
-                                                <label className="block text-xs font-medium text-rc-muted mb-1">Unitate</label>
-                                                <select name="powerUnit" value={formData.powerUnit} onChange={handleInputChange} className="input-field w-full rounded-lg px-3 py-2 text-sm">
-                                                    <option value="Gh/s">Gh/s</option>
-                                                    <option value="Th/s">Th/s</option>
-                                                    <option value="Ph/s">Ph/s</option>
-                                                    <option value="Eh/s">Eh/s</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-medium text-rc-muted mb-1">Bonus (%)</label>
-                                            <input type="number" step="any" name="bonus" value={formData.bonus} onChange={handleInputChange} className="input-field w-full rounded-lg px-3 py-2 text-sm" placeholder="ex: 2.5" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-medium text-rc-muted mb-1">Preț (RLT)</label>
-                                            <input type="number" step="any" name="price" value={formData.price} onChange={handleInputChange} className="input-field w-full rounded-lg px-3 py-2 text-sm" placeholder="ex: 15.5" required />
-                                        </div>
-                                        <label className="flex items-center space-x-2 cursor-pointer pt-1">
-                                            <input type="checkbox" name="inCollection" checked={formData.inCollection} onChange={handleInputChange} className="rounded border-white/20 text-rc-accent focus:ring-rc-accent bg-rc-dark/50 w-4 h-4 cursor-pointer" />
-                                            <span className="text-xs font-medium text-white/80">Deținut (In Collection)</span>
-                                        </label>
-                                        <button type="submit" className="w-full bg-rc-accent hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors flex justify-center items-center mt-2">
-                                            <i className="fa-solid fa-floppy-disk mr-2"></i> Salvează
-                                        </button>
-                                    </form>
-                                </div>
-
-                                <div className="glass-panel p-6 rounded-xl shadow-xl">
-                                    <h2 className="text-lg font-semibold text-white mb-4"><i className="fa-solid fa-clipboard mr-2"></i>Importă din Market</h2>
-                                    <form onSubmit={handleImport} className="space-y-4">
-                                        <div>
-                                            <label className="block text-xs font-medium text-rc-muted mb-2">Lipește textul copiat direct din Market:</label>
-                                            <textarea value={importText} onChange={(e) => setImportText(e.target.value)} className="input-field w-full rounded-lg px-3 py-2 text-xs font-mono h-32 resize-none" placeholder="Legendary Dreamcatcher&#10;1.188 Eh/s | 33%&#10;Quantity: 2&#10;From&#10;136.5 RLT" required />
-                                        </div>
-                                        <button type="submit" className="w-full bg-rc-highlight hover:bg-green-600 text-white font-medium py-2 px-4 rounded-lg transition-colors flex justify-center items-center mt-2">
-                                            <i className="fa-solid fa-file-import mr-2"></i> Importă Datele
-                                        </button>
-                                        {importMessage.text && (
-                                            <div className={`p-2 rounded text-xs font-medium text-center mt-2 ${importMessage.type === 'success' ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
-                                                {importMessage.text}
-                                            </div>
-                                        )}
-                                    </form>
-                                </div>
-                            </div>
-
-                            <div className="lg:col-span-3">
-                                <div className="glass-panel rounded-xl shadow-xl overflow-hidden flex flex-col h-full">
-                                    <div className="p-4 border-b border-white/10 flex justify-between items-center bg-rc-panel/30">
-                                        <h2 className="text-lg font-semibold text-white"><i className="fa-solid fa-server mr-2"></i>Lista Minere</h2>
-                                        {miners.length > 0 && (
-                                            <button onClick={() => setShowClearModal(true)} className="text-xs bg-red-500/20 hover:bg-red-500/30 text-red-400 py-1.5 px-3 rounded-lg transition-colors flex items-center border border-red-500/30">
-                                                <i className="fa-solid fa-trash-can mr-1.5"></i> Șterge Tot
-                                            </button>
-                                        )}
-                                    </div>
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left border-collapse">
-                                            <thead>
-                                                <tr className="bg-rc-panel/50 text-xs uppercase tracking-wider text-rc-muted border-b border-white/10">
-                                                    <th className="p-4 font-medium cursor-pointer hover:text-white" onClick={() => handleSort('name')}>Miner <SortIcon columnKey="name" /></th>
-                                                    <th className="p-4 font-medium cursor-pointer hover:text-white" onClick={() => handleSort('powerPh')}>Putere (Ph/s) <SortIcon columnKey="powerPh" /></th>
-                                                    <th className="p-4 font-medium cursor-pointer hover:text-white" onClick={() => handleSort('bonus')}>Bonus % <SortIcon columnKey="bonus" /></th>
-                                                    <th className="p-4 font-medium cursor-pointer hover:text-white" onClick={() => handleSort('price')}>Preț (RLT) <SortIcon columnKey="price" /></th>
-                                                    <th className="p-4 font-medium cursor-pointer hover:text-rc-highlight text-blue-300" onClick={() => handleSort('costPerPh')}>Preț / Ph/s <SortIcon columnKey="costPerPh" /></th>
-                                                    <th className="p-4 font-medium cursor-pointer hover:text-rc-highlight text-purple-300" onClick={() => handleSort('costPerBonus')}>Preț / 1% Bonus <SortIcon columnKey="costPerBonus" /></th>
-                                                    <th className="p-4 font-medium text-center">Acțiuni</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-white/5 text-sm">
-                                                {sortedMiners.length === 0 ? (
-                                                    <tr><td colSpan="7" className="p-8 text-center text-rc-muted">Niciun miner adăugat.</td></tr>
-                                                ) : (
-                                                    sortedMiners.map((miner) => (
-                                                        <tr key={miner.id} className="table-row-hover transition-colors">
-                                                            <td className="p-4 font-medium text-white">
-                                                                <div className="flex flex-col items-start gap-1.5">
-                                                                    <span className="whitespace-nowrap">{renderStyledName(miner.name)}</span>
-                                                                    {miner.inCollection && (
-                                                                        <span className="text-[9px] font-bold tracking-wider bg-[#5b528b] text-[#d6cbf5] px-1.5 py-0.5 rounded border border-[#786cae] uppercase shadow-sm">In Collection</span>
-                                                                    )}
-                                                                </div>
-                                                            </td>
-                                                            <td className="p-4">{formatNumber(miner.powerPh)} Ph/s</td>
-                                                            <td className="p-4">{miner.bonus > 0 ? `${formatNumber(miner.bonus)}%` : '-'}</td>
-                                                            <td className="p-4 font-semibold text-yellow-400">{formatNumber(miner.price)} <span className="text-xs font-normal">RLT</span></td>
-                                                            <td className="p-4 font-bold text-blue-400">{miner.costPerPh > 0 ? `${formatNumber(miner.costPerPh)} RLT` : 'N/A'}</td>
-                                                            <td className="p-4 font-bold text-purple-400">{miner.costPerBonus > 0 ? `${formatNumber(miner.costPerBonus)} RLT` : 'N/A'}</td>
-                                                            <td className="p-4 text-center">
-                                                                <button onClick={() => setMiners(prev => prev.filter(m => m.id !== miner.id))} className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-400/10 rounded transition-colors" title="Șterge">
-                                                                    <i className="fa-solid fa-trash"></i>
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-                                                    ))
-                                                )}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* --- TABUL 2: PIESE (CRAFTING) --- */}
-                        <div className={`grid grid-cols-1 lg:grid-cols-4 gap-6 animate-[fadeIn_0.3s_ease-out] ${activeTab === 'parts' ? '' : 'hidden'}`}>
-                            
-                            <div className="lg:col-span-1 space-y-4">
-                                <div className="glass-panel p-6 rounded-xl shadow-xl border-t-4 border-t-purple-500">
-                                    <h2 className="text-lg font-semibold text-white mb-4"><i className="fa-solid fa-gear mr-2 text-purple-400"></i>Setări Analiză Piese</h2>
-                                    
-                                    <div className="mb-6 flex bg-rc-dark/50 p-1 rounded-lg border border-white/10 w-full shadow-inner">
-                                        <button onClick={() => setPartsMode('buy')} className={`flex-1 px-2 py-2 rounded-md text-[11px] font-bold tracking-wide uppercase transition-colors ${partsMode === 'buy' ? 'bg-purple-600 text-white shadow' : 'text-rc-muted hover:text-white hover:bg-white/5'}`}>
-                                            <i className="fa-solid fa-cart-shopping mr-1.5"></i>Vreau să Obțin
-                                        </button>
-                                        <button onClick={() => setPartsMode('sell')} className={`flex-1 px-2 py-2 rounded-md text-[11px] font-bold tracking-wide uppercase transition-colors ${partsMode === 'sell' ? 'bg-green-600 text-white shadow' : 'text-rc-muted hover:text-white hover:bg-white/5'}`}>
-                                            <i className="fa-solid fa-coins mr-1.5"></i>Vreau să Vând
-                                        </button>
-                                    </div>
-
-                                    <label className="block text-xs font-medium text-rc-muted mb-2">Nivelul Tău de Reducere (Merge)</label>
-                                    <select value={craftingLevel} onChange={(e) => setCraftingLevel(parseInt(e.target.value))} className="input-field w-full rounded-lg px-3 py-2 text-sm mb-4 font-medium">
-                                        <option value={1}>Nivel 1 (0% Reducere)</option>
-                                        <option value={2}>Nivel 2 (5% Reducere)</option>
-                                        <option value={3}>Nivel 3 (10% Reducere)</option>
-                                        <option value={4}>Nivel 4 (15% Reducere)</option>
-                                        <option value={5}>Nivel 5 (25% Reducere)</option>
-                                    </select>
-
-                                    <h2 className="text-lg font-semibold text-white mb-4 mt-8"><i className="fa-solid fa-clipboard mr-2 text-purple-400"></i>Importă Prețurile</h2>
-                                    <form onSubmit={handlePartsImport} className="space-y-4">
-                                        <div>
-                                            <label className="block text-xs font-medium text-rc-muted mb-2 leading-relaxed">
-                                                Selectează piesele în Market, dă Copy, apoi Paste aici (ex: "Legendary Hashboard..."):
-                                            </label>
-                                            <textarea value={partsImportText} onChange={(e) => setPartsImportText(e.target.value)} className="input-field w-full rounded-lg px-3 py-2 text-xs font-mono h-32 resize-none" placeholder="Legendary Hashboard&#10;Quantity: 889&#10;From&#10;11.445 RLT" required />
-                                        </div>
-                                        <button type="submit" className="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex justify-center items-center mt-2 shadow-lg shadow-purple-900/50">
-                                            <i className="fa-solid fa-file-import mr-2"></i> Actualizează Prețuri
-                                        </button>
-                                        {partsImportMsg && (
-                                            <div className={`p-2 rounded text-xs font-medium text-center mt-2 ${partsImportMsg.includes('Eroare') ? 'bg-red-500/20 text-red-300' : 'bg-green-500/20 text-green-300'}`}>
-                                                {partsImportMsg}
-                                            </div>
-                                        )}
-                                    </form>
-                                </div>
-                                <div className="glass-panel p-4 rounded-xl text-xs text-rc-muted leading-relaxed">
-                                    <p><strong>Info Mod Vânzare:</strong> Calculatorul deduce automat taxa pieței (5%) folosind formula inteligentă <code>Preț / 1.05</code> pentru a afla profitul tău net real.</p>
-                                </div>
-                            </div>
-
-                            <div className="lg:col-span-3">
-                                <div className="glass-panel rounded-xl shadow-xl overflow-hidden flex flex-col h-full">
-                                    <div className="p-4 border-b border-white/10 bg-rc-panel/30">
-                                        <h2 className="text-lg font-semibold text-white"><i className="fa-solid fa-code-merge mr-2 text-purple-400"></i>{partsMode === 'buy' ? 'Decizie Achiziție: Cumpără de pe Market vs. Craftează singur' : 'Decizie Vânzare (Din cutii): Vinde piese brute vs. Fă Merge & Vinde'}</h2>
-                                    </div>
-                                    <div className="overflow-x-auto p-4 space-y-6">
-                                        {['Wire', 'Fan', 'Hashboard'].map(partType => (
-                                            <div key={partType} className="border border-white/10 rounded-lg overflow-hidden bg-rc-dark/30">
-                                                <div className="bg-gradient-to-r from-rc-panel to-rc-panel/50 px-4 py-3 font-bold text-white border-b border-white/10 flex items-center shadow-md">
-                                                    {partType === 'Wire' && <i className="fa-solid fa-plug mr-2.5 text-gray-400"></i>}
-                                                    {partType === 'Fan' && <i className="fa-solid fa-fan mr-2.5 text-gray-400"></i>}
-                                                    {partType === 'Hashboard' && <i className="fa-solid fa-microchip mr-2.5 text-gray-400"></i>}
-                                                    <span className="tracking-wide text-sm">{partType.toUpperCase()}</span>
+                                            <div className="flex gap-2">
+                                                <div className="flex-1">
+                                                    <label className="block text-xs font-medium text-rc-muted mb-1">Putere</label>
+                                                    <input type="number" step="any" required value={manualForm.power} onChange={e => setManualForm({...manualForm, power: e.target.value})} className="input-field w-full rounded-lg px-3 py-2 text-sm" placeholder="ex: 5.5" />
                                                 </div>
-                                                <table className="w-full text-left border-collapse">
-                                                    <thead>
-                                                        <tr className="text-[10px] uppercase tracking-wider text-rc-muted border-b border-white/5 bg-black/40">
-                                                            <th className="p-3 font-medium">Țintă (Raritate)</th>
-                                                            {partsMode === 'buy' ? (
-                                                                <>
-                                                                    <th className="p-3 font-medium">Preț Market (Dacă cumperi)</th>
-                                                                    <th className="p-3 font-medium">Cost Crafting (Piese + Fee)</th>
-                                                                    <th className="p-3 font-medium text-center">Decizie Optimală</th>
-                                                                    <th className="p-3 font-medium text-right">Economisești (RLT)</th>
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <th className="p-3 font-medium text-blue-300">Venit Vinde Brute (Net)</th>
-                                                                    <th className="p-3 font-medium text-purple-300">Venit Merge & Vinde (Net)</th>
-                                                                    <th className="p-3 font-medium text-center">Decizie Optimală</th>
-                                                                    <th className="p-3 font-medium text-right">Diferență Profit</th>
-                                                                </>
-                                                            )}
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody className="divide-y divide-white/5 text-sm">
-                                                        {['Uncommon', 'Rare', 'Epic', 'Legendary'].map(rarity => {
-                                                            const calc = calculateCrafting(partType, rarity);
-                                                            return (
-                                                                <tr key={rarity} className="hover:bg-white/5 transition-colors">
-                                                                    <td className={`p-3 font-bold ${renderPartColor(rarity)}`}>{rarity}</td>
-                                                                    {partsMode === 'buy' ? (
-                                                                        <>
-                                                                            <td className="p-3 text-white font-medium">
-                                                                                {calc.marketPrice > 0 ? `${formatNumber(calc.marketPrice)} RLT` : <span className="text-rc-muted/40 text-xs font-normal">N/A Market</span>}
-                                                                            </td>
-                                                                            <td className="p-3">
-                                                                                {calc.canCalculate ? (
-                                                                                    <div className="flex flex-col">
-                                                                                        <span className="text-white font-medium">{formatNumber(calc.cost)} RLT</span>
-                                                                                        <span className="text-[10px] text-rc-muted">
-                                                                                            {calc.isCommonFree ? 
-                                                                                                `Gratis (Din RST) + ${formatNumber(calc.feeCost)} (Taxă)` : 
-                                                                                                `${calc.partsNeeded}x ${calc.prevRarity} + ${formatNumber(calc.feeCost)} (Taxă)`
-                                                                                            }
-                                                                                        </span>
-                                                                                    </div>
-                                                                                ) : (
-                                                                                    <span className="text-rc-muted/40 text-xs font-normal">Lipsă piese {calc.prevRarity}</span>
-                                                                                )}
-                                                                            </td>
-                                                                            <td className="p-3 text-center">
-                                                                                {calc.canCalculate && calc.marketPrice > 0 ? (
-                                                                                    calc.isCraftingCheaper ? 
-                                                                                    <span className="inline-block bg-green-500/20 text-green-400 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-green-500/30 w-[100px] text-center shadow-sm">Craft</span> : 
-                                                                                    <span className="inline-block bg-red-500/20 text-red-400 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-red-500/30 w-[100px] text-center shadow-sm">Buy Market</span>
-                                                                                ) : <span className="text-gray-600">-</span>}
-                                                                            </td>
-                                                                            <td className="p-3 text-right">
-                                                                                {calc.canCalculate && calc.marketPrice > 0 ? (
-                                                                                    <span className={`font-bold ${calc.savings > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                                                        {calc.savings > 0 ? '+' : ''}{formatNumber(calc.savings)} RLT
-                                                                                    </span>
-                                                                                ) : <span className="text-gray-600">-</span>}
-                                                                            </td>
-                                                                        </>
-                                                                    ) : (
-                                                                        <>
-                                                                            <td className="p-3 text-white font-medium">
-                                                                                {calc.isCommonUntradeable ? (
-                                                                                    <span className="text-rc-muted/60 text-[11px] font-medium italic">Nu pot fi vândute</span>
-                                                                                ) : calc.canCalculate && calc.netPrev > 0 ? (
-                                                                                    <div className="flex flex-col">
-                                                                                        <span>{formatNumber(calc.sellRawValue)} RLT</span>
-                                                                                        <span className="text-[10px] text-rc-muted">Din {calc.partsNeeded}x la {formatNumber(calc.netPrev)} net/buc</span>
-                                                                                    </div>
-                                                                                ) : <span className="text-rc-muted/40 text-xs font-normal">N/A Piese brute</span>}
-                                                                            </td>
-                                                                            <td className="p-3">
-                                                                                {calc.canCalculate && calc.marketPrice > 0 ? (
-                                                                                    <div className="flex flex-col">
-                                                                                        <span className="text-white font-medium">{formatNumber(calc.sellCraftedValue)} RLT</span>
-                                                                                        <span className="text-[10px] text-rc-muted">
-                                                                                            {formatNumber(calc.netTarget)} net - {formatNumber(calc.feeCost)} taxa merge
-                                                                                        </span>
-                                                                                    </div>
-                                                                                ) : (
-                                                                                    <span className="text-rc-muted/40 text-xs font-normal">N/A Market Țintă</span>
-                                                                                )}
-                                                                            </td>
-                                                                            <td className="p-3 text-center">
-                                                                                {calc.canCalculate && calc.marketPrice > 0 ? (
-                                                                                    calc.isCommonUntradeable ? (
-                                                                                        calc.sellCraftedValue > 0 ?
-                                                                                        <span className="inline-block bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-purple-500/30 w-[110px] text-center shadow-sm">Merge Obligatoriu</span> :
-                                                                                        <span className="inline-block bg-gray-500/20 text-gray-400 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-gray-500/30 w-[110px] text-center shadow-sm">Ne rentabil</span>
-                                                                                    ) : (
-                                                                                        calc.isMergeProfitable ? 
-                                                                                        <span className="inline-block bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-purple-500/30 w-[110px] text-center shadow-sm">Merge & Vinde</span> : 
-                                                                                        <span className="inline-block bg-blue-500/20 text-blue-400 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-blue-500/30 w-[110px] text-center shadow-sm">Vinde Brute</span>
-                                                                                    )
-                                                                                ) : <span className="text-gray-600">-</span>}
-                                                                            </td>
-                                                                            <td className="p-3 text-right">
-                                                                                {calc.canCalculate && calc.marketPrice > 0 ? (
-                                                                                    <span className={`font-bold ${calc.sellProfitDiff > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                                                        {calc.sellProfitDiff > 0 ? '+' : ''}{formatNumber(calc.sellProfitDiff)} RLT
-                                                                                    </span>
-                                                                                ) : <span className="text-gray-600">-</span>}
-                                                                            </td>
-                                                                        </>
-                                                                    )}
-                                                                </tr>
-                                                            );
-                                                        })}
-                                                    </tbody>
-                                                </table>
+                                                <div className="w-24">
+                                                    <label className="block text-xs font-medium text-rc-muted mb-1">Unitate</label>
+                                                    <select value={manualForm.unit} onChange={e => setManualForm({...manualForm, unit: e.target.value})} className="input-field w-full rounded-lg px-2 py-2 text-sm">
+                                                        <option>Gh/s</option>
+                                                        <option>Th/s</option>
+                                                        <option>Ph/s</option>
+                                                        <option>Eh/s</option>
+                                                    </select>
+                                                </div>
                                             </div>
-                                        ))}
+                                            <div>
+                                                <label className="block text-xs font-medium text-rc-muted mb-1">Bonus (%)</label>
+                                                <input type="number" step="any" required value={manualForm.bonus} onChange={e => setManualForm({...manualForm, bonus: e.target.value})} className="input-field w-full rounded-lg px-3 py-2 text-sm" placeholder="ex: 2.5" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-medium text-rc-muted mb-1">Preț (RLT)</label>
+                                                <input type="number" step="any" required value={manualForm.price} onChange={e => setManualForm({...manualForm, price: e.target.value})} className="input-field w-full rounded-lg px-3 py-2 text-sm" placeholder="ex: 15.5" />
+                                            </div>
+                                            <div className="flex items-center mt-2">
+                                                <input type="checkbox" id="inCollection" checked={manualForm.inCollection} onChange={e => setManualForm({...manualForm, inCollection: e.target.checked})} className="w-4 h-4 text-rc-accent bg-rc-card border-gray-600 rounded focus:ring-rc-accent" />
+                                                <label htmlFor="inCollection" className="ml-2 text-xs font-medium text-rc-muted cursor-pointer">Dețin deja (In Collection)</label>
+                                            </div>
+                                            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors mt-2">
+                                                <i className="fa-solid fa-save mr-2"></i> Salvează
+                                            </button>
+                                        </form>
+                                    </div>
+
+                                    <div className="glass-panel p-5 rounded-xl border border-purple-500/30">
+                                        <h2 className="text-lg font-semibold text-white mb-4"><i className="fa-solid fa-clipboard-list mr-2 text-purple-400"></i>Importă din Market</h2>
+                                        <form onSubmit={handleMarketImport} className="space-y-4">
+                                            <div>
+                                                <label className="block text-xs font-medium text-rc-muted mb-2 leading-relaxed">
+                                                    Lipește textul copiat direct din Market (Selectează numele, puterea și prețul):
+                                                </label>
+                                                <textarea value={marketImportText} onChange={(e) => setMarketImportText(e.target.value)} className="input-field w-full rounded-lg px-3 py-2 text-xs font-mono h-32 resize-none" placeholder="Legendary Dreamcatcher&#10;1.188 Eh/s | 33%&#10;Quantity: 3&#10;From&#10;136.5 RLT" required />
+                                            </div>
+                                            <button type="submit" className="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex justify-center items-center mt-2">
+                                                <i className="fa-solid fa-file-import mr-2"></i> Importă Datele
+                                            </button>
+                                            {marketImportMsg && (
+                                                <div className={`p-3 rounded text-xs font-medium text-center mt-2 ${marketImportMsg.includes('Eroare') ? 'bg-red-500/20 text-red-300 border border-red-500/50' : 'bg-green-500/20 text-green-300 border border-green-500/50'}`}>
+                                                    {marketImportMsg}
+                                                </div>
+                                            )}
+                                        </form>
+                                    </div>
+                                </div>
+
+                                <div className="lg:col-span-3">
+                                    <div className="glass-panel rounded-xl overflow-hidden shadow-2xl flex flex-col h-full border border-gray-700/50">
+                                        <div className="p-4 bg-rc-card border-b border-gray-700/50 flex justify-between items-center">
+                                            <h3 className="font-semibold text-lg text-white">Lista Minere ({miners.length})</h3>
+                                            {miners.length > 0 && (
+                                                <button onClick={clearMiners} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs px-3 py-1.5 rounded-md border border-red-500/30 transition-colors">
+                                                    <i className="fa-solid fa-trash mr-1"></i> Șterge Tot
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left border-collapse min-w-[700px]">
+                                                <thead>
+                                                    <tr className="bg-rc-card/50 text-xs uppercase tracking-wider text-rc-muted border-b border-gray-700">
+                                                        <th className="p-4 font-medium cursor-pointer hover:text-white" onClick={() => handleSort('name')}>Miner <i className="fa-solid fa-sort ml-1"></i></th>
+                                                        <th className="p-4 font-medium cursor-pointer hover:text-white" onClick={() => handleSort('powerPhs')}>Putere (Ph/s) <i className="fa-solid fa-sort ml-1"></i></th>
+                                                        <th className="p-4 font-medium cursor-pointer hover:text-white" onClick={() => handleSort('bonus')}>Bonus % <i className="fa-solid fa-sort ml-1"></i></th>
+                                                        <th className="p-4 font-medium cursor-pointer hover:text-white" onClick={() => handleSort('price')}>Preț (RLT) <i className="fa-solid fa-sort ml-1"></i></th>
+                                                        <th className="p-4 font-medium cursor-pointer hover:text-white group" onClick={() => handleSort('pricePerPhs')}>
+                                                            Preț / Ph/s <i className="fa-solid fa-sort ml-1 text-rc-accent group-hover:text-white"></i>
+                                                        </th>
+                                                        <th className="p-4 font-medium cursor-pointer hover:text-white group" onClick={() => handleSort('pricePerBonus')}>
+                                                            Preț / 1% Bonus <i className="fa-solid fa-sort ml-1 text-purple-400 group-hover:text-white"></i>
+                                                        </th>
+                                                        <th className="p-4 text-center">Ațiuni</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-800 text-sm">
+                                                    {sortedMiners.length === 0 ? (
+                                                        <tr>
+                                                            <td colSpan="7" className="p-8 text-center text-rc-muted">
+                                                                Nu ai adăugat niciun miner încă. Adaugă manual sau folosește importul din stânga.
+                                                            </td>
+                                                        </tr>
+                                                    ) : (
+                                                        sortedMiners.map(miner => (
+                                                            <tr key={miner.id} className="hover:bg-white/5 transition-colors group relative">
+                                                                <td className={`p-4 font-semibold flex items-center gap-2 ${getColorForRarity(miner.name)}`}>
+                                                                    {miner.inCollection && (
+                                                                        <span title="In Collection" className="bg-purple-600 text-white text-[9px] px-1.5 py-0.5 rounded uppercase tracking-wider shadow-sm absolute top-1 left-1 opacity-80">
+                                                                            Owned
+                                                                        </span>
+                                                                    )}
+                                                                    {miner.name}
+                                                                </td>
+                                                                <td className="p-4 text-gray-300">{formatNumber(miner.originalPower)} {miner.unit}</td>
+                                                                <td className="p-4 text-gray-300">{formatNumber(miner.bonus)}%</td>
+                                                                <td className="p-4 font-medium text-yellow-500">{formatNumber(miner.price)} <span className="text-xs text-yellow-600">RLT</span></td>
+                                                                <td className="p-4 font-bold text-rc-accent">{formatNumber(miner.pricePerPhs)} <span className="text-xs text-teal-700">RLT</span></td>
+                                                                <td className="p-4 font-bold text-purple-400">{miner.pricePerBonus ? formatNumber(miner.pricePerBonus) : '-'} <span className="text-xs text-purple-900">RLT</span></td>
+                                                                <td className="p-4 text-center">
+                                                                    <button onClick={() => handleDelete(miner.id)} className="text-gray-500 hover:text-red-400 transition-colors p-2">
+                                                                        <i className="fa-solid fa-trash-can"></i>
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        ))
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
 
-                    </div>
-                    
-                    {showClearModal && (
-                        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                            <div className="glass-panel p-6 rounded-xl max-w-sm w-full shadow-2xl animate-[fadeIn_0.2s_ease-out]">
-                                <h3 className="text-lg font-bold text-white mb-2"><i className="fa-solid fa-triangle-exclamation text-red-500 mr-2"></i>Confirmare Ștergere</h3>
-                                <p className="text-sm text-rc-muted mb-6">Ești sigur că vrei să ștergi toți minerele din listă? Această acțiune nu poate fi anulată.</p>
-                                <div className="flex justify-end space-x-3">
-                                    <button onClick={() => setShowClearModal(false)} className="px-4 py-2 text-sm font-medium text-white bg-white/10 hover:bg-white/20 rounded-lg transition-colors">Anulează</button>
-                                    <button onClick={() => { setMiners([]); setShowClearModal(false); }} className="px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors shadow-lg shadow-red-500/30">Șterge Tot</button>
+                        {}
+                        {activeTab === 'parts' && (
+                            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                                <div className="space-y-6">
+                                    <div className="glass-panel p-5 rounded-xl shadow-xl">
+                                        <h2 className="text-lg font-semibold text-white mb-4"><i className="fa-solid fa-sliders mr-2 text-rc-accent"></i>Setări Crafting</h2>
+                                        
+                                        <div className="mb-4">
+                                            <label className="block text-xs font-medium text-rc-muted mb-2">Mod Calculator (Taxă Inclusă)</label>
+                                            <div className="flex bg-rc-bg p-1 rounded-lg border border-gray-700">
+                                                <button 
+                                                    onClick={() => setPartsMode('buy')}
+                                                    className={`flex-1 py-1.5 text-sm rounded-md font-medium transition-all ${partsMode === 'buy' ? 'bg-green-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}>
+                                                    Vreau să Obțin
+                                                </button>
+                                                <button 
+                                                    onClick={() => setPartsMode('sell')}
+                                                    className={`flex-1 py-1.5 text-sm rounded-md font-medium transition-all ${partsMode === 'sell' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-400 hover:text-white'}`}>
+                                                    Vreau să Vând
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-medium text-rc-muted mb-2">Nivel Reducere Piese (0-25%)</label>
+                                            <select 
+                                                value={partsLevel} 
+                                                onChange={(e) => setPartsLevel(parseInt(e.target.value))}
+                                                className="input-field w-full rounded-lg px-3 py-2 text-sm font-medium">
+                                                <option value="1">Level 1 (Fără Reducere)</option>
+                                                <option value="2">Level 2 (5% Reducere)</option>
+                                                <option value="3">Level 3 (10% Reducere)</option>
+                                                <option value="4">Level 4 (15% Reducere)</option>
+                                                <option value="5">Level 5 (20% Reducere)</option>
+                                                <option value="6">Level 6 (25% Reducere)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div className="glass-panel p-5 rounded-xl border border-purple-500/30">
+                                        <h2 className="text-lg font-semibold text-white mb-4"><i className="fa-solid fa-tags mr-2 text-purple-400"></i>Prețuri Market (Parts)</h2>
+                                        <form onSubmit={handlePartsImport} className="space-y-4">
+                                            <div>
+                                                <label className="block text-xs font-medium text-rc-muted mb-2 leading-relaxed">
+                                                    Lipește textul din Market - Parts:
+                                                </label>
+                                                <textarea value={partsImportText} onChange={(e) => setPartsImportText(e.target.value)} className="input-field w-full rounded-lg px-3 py-2 text-xs font-mono h-24 resize-none" placeholder="Uncommon Fan&#10;Quantity: 414 443&#10;From&#10;0.01134 RLT" required />
+                                            </div>
+                                            <button type="submit" className="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex justify-center items-center mt-2">
+                                                <i className="fa-solid fa-file-import mr-2"></i> Importă Prețuri
+                                            </button>
+                                            {partsImportMsg && (
+                                                <div className={`p-2 rounded text-xs font-medium text-center mt-2 ${partsImportMsg.includes('Eroare') ? 'bg-red-500/20 text-red-300' : 'bg-green-500/20 text-green-300'}`}>
+                                                    {partsImportMsg}
+                                                </div>
+                                            )}
+                                        </form>
+
+                                        <h2 className="text-lg font-semibold text-white mb-4 mt-8"><i className="fa-solid fa-box-open mr-2 text-blue-400"></i>Inventarul Tău (Storage)</h2>
+                                        <form onSubmit={handleInvImport} className="space-y-4">
+                                            <div>
+                                                <label className="block text-xs font-medium text-rc-muted mb-2 leading-relaxed">
+                                                    Lipește textul din Storage - Parts (pentru calcul total profit):
+                                                </label>
+                                                <textarea value={invImportText} onChange={(e) => setInvImportText(e.target.value)} className="input-field w-full rounded-lg px-3 py-2 text-xs font-mono h-32 resize-none" placeholder="Uncommon&#10;Wire&#10;Quantity:&#10;7" required />
+                                            </div>
+                                            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors flex justify-center items-center mt-2 shadow-lg shadow-blue-900/50">
+                                                <i className="fa-solid fa-boxes-packing mr-2"></i> Actualizează Inventar
+                                            </button>
+                                            {invImportMsg && (
+                                                <div className={`p-2 rounded text-xs font-medium text-center mt-2 ${invImportMsg.includes('Eroare') ? 'bg-red-500/20 text-red-300' : 'bg-green-500/20 text-green-300'}`}>
+                                                    {invImportMsg}
+                                                </div>
+                                            )}
+                                        </form>
+                                    </div>
+                                    <div className="glass-panel p-4 rounded-xl text-xs text-rc-muted leading-relaxed">
+                                        <p><strong>Info Mod Vânzare:</strong> Calculatorul deduce automat taxa pieței (5%) folosind formula inteligentă <code>Preț / 1.05</code> pentru a afla profitul tău net real.</p>
+                                    </div>
+                                </div>
+
+                                {}
+                                <div className="lg:col-span-3 space-y-6">
+                                    {['Hashboard', 'Wire', 'Fan'].map(type => {
+                                        const calculations = calculateCrafting(type);
+                                        return (
+                                            <div key={type} className="glass-panel rounded-xl overflow-hidden shadow-2xl border border-gray-700/50">
+                                                <div className="p-4 bg-rc-card border-b border-gray-700/50">
+                                                    <h3 className="font-semibold text-lg text-white flex items-center gap-2">
+                                                        <i className={`fa-solid ${type === 'Hashboard' ? 'fa-microchip text-yellow-400' : type === 'Wire' ? 'fa-plug text-blue-400' : 'fa-fan text-green-400'}`}></i>
+                                                        {type}
+                                                    </h3>
+                                                </div>
+                                                <div className="overflow-x-auto">
+                                                    <table className="w-full text-left border-collapse">
+                                                        <thead>
+                                                            <tr className="bg-rc-card/30 text-xs uppercase tracking-wider text-rc-muted border-b border-gray-700">
+                                                                <th className="p-3 font-medium">Țintă Merge</th>
+                                                                {partsMode === 'buy' ? (
+                                                                    <>
+                                                                        <th className="p-3 font-medium">Preț Market (Bucată)</th>
+                                                                        <th className="p-3 font-medium">Cost Craft (Total)</th>
+                                                                        <th className="p-3 font-medium text-center">Recomandare</th>
+                                                                        <th className="p-3 font-medium text-right">Economie RLT</th>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <th className="p-3 font-medium">Vânzare Piese Brute (Net)</th>
+                                                                        <th className="p-3 font-medium">Vânzare Produs Merge (Net)</th>
+                                                                        <th className="p-3 font-medium text-center">Decizie Vânzare</th>
+                                                                        <th className="p-3 font-medium text-right">Diferență Profit</th>
+                                                                    </>
+                                                                )}
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-gray-800 text-sm">
+                                                            {['Uncommon', 'Rare', 'Epic', 'Legendary'].map(rarity => {
+                                                                const calc = calculations[rarity];
+                                                                return (
+                                                                    <tr key={rarity} className="hover:bg-white/5 transition-colors">
+                                                                        <td className={`p-3 font-semibold ${getColorForRarity(rarity)} flex items-center gap-2`}>
+                                                                            <i className="fa-solid fa-arrow-right text-gray-600 text-xs"></i> {rarity}
+                                                                        </td>
+                                                                    
+                                                                        {partsMode === 'buy' ? (
+                                                                            <>
+                                                                                <td className="p-3 text-white font-medium">
+                                                                                    {calc.marketPrice > 0 ? `${formatNumber(calc.marketPrice, 5)} RLT` : <span className="text-rc-muted/40 text-xs font-normal">N/A Market</span>}
+                                                                                </td>
+                                                                                <td className="p-3">
+                                                                                    {calc.canCalculate ? (
+                                                                                        <div className="flex flex-col">
+                                                                                            <span className="text-white font-medium">{formatNumber(calc.cost, 5)} RLT</span>
+                                                                                            <span className="text-[10px] text-rc-muted">
+                                                                                                {calc.isCommonFree ? 
+                                                                                                    `Gratis (Din RST) + ${formatNumber(calc.feeCost, 3)} (Taxă)` : 
+                                                                                                    `${calc.partsNeeded}x ${calc.prevRarity} + ${formatNumber(calc.feeCost, 3)} (Taxă)`
+                                                                                                }
+                                                                                            </span>
+                                                                                            {calc.invPrevQty > 0 && (
+                                                                                                <span className="text-[10px] text-rc-accent mt-1 bg-rc-accent/10 px-1 py-0.5 rounded w-fit border border-rc-accent/20">Ai {formatNumber(calc.invPrevQty, 0)}x &rarr; Faci {formatNumber(calc.maxCraftable, 0)}x</span>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <span className="text-rc-muted/40 text-xs font-normal">Lipsă piese {calc.prevRarity}</span>
+                                                                                    )}
+                                                                                </td>
+                                                                                <td className="p-3 text-center">
+                                                                                    {calc.canCalculate && calc.marketPrice > 0 ? (
+                                                                                        calc.isCraftingCheaper ? 
+                                                                                        <span className="inline-block bg-green-500/20 text-green-400 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-green-500/30 w-[100px] text-center shadow-sm">Craft</span> : 
+                                                                                        <span className="inline-block bg-red-500/20 text-red-400 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-red-500/30 w-[100px] text-center shadow-sm">Buy Market</span>
+                                                                                    ) : <span className="text-gray-600">-</span>}
+                                                                                </td>
+                                                                                <td className="p-3 text-right">
+                                                                                    {calc.canCalculate && calc.marketPrice > 0 ? (
+                                                                                        <span className={`font-bold ${calc.savings > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                                                            {calc.savings > 0 ? '+' : ''}{formatNumber(calc.savings, 5)} RLT
+                                                                                        </span>
+                                                                                    ) : <span className="text-gray-600">-</span>}
+                                                                                </td>
+                                                                            </>
+                                                                        ) : (
+                                                                            <>
+                                                                                <td className="p-3 text-white font-medium">
+                                                                                    {calc.isCommonUntradeable ? (
+                                                                                        <div className="flex flex-col">
+                                                                                            <span className="text-rc-muted/60 text-[11px] font-medium italic">Nu pot fi vândute</span>
+                                                                                            {calc.invPrevQty > 0 && <span className="text-[10px] text-blue-300 mt-1 bg-blue-500/10 px-1 py-0.5 rounded w-fit border border-blue-500/20">Ai {formatNumber(calc.invPrevQty, 0)}x brute (0 RLT)</span>}
+                                                                                        </div>
+                                                                                    ) : calc.canCalculate && calc.netPrev > 0 ? (
+                                                                                        <div className="flex flex-col">
+                                                                                            <span>{formatNumber(calc.sellRawValue, 5)} RLT</span>
+                                                                                            <span className="text-[10px] text-rc-muted">Din {calc.partsNeeded}x la {formatNumber(calc.netPrev, 5)} net/buc</span>
+                                                                                            {calc.invPrevQty > 0 && <span className="text-[10px] text-blue-300 mt-1 bg-blue-500/10 px-1 py-0.5 rounded w-fit border border-blue-500/20">Total ({formatNumber(calc.invPrevQty, 0)}x): {formatNumber(calc.totalRawSellValue, 5)} RLT</span>}
+                                                                                        </div>
+                                                                                    ) : <span className="text-rc-muted/40 text-xs font-normal">N/A Piese brute</span>}
+                                                                                </td>
+                                                                                <td className="p-3">
+                                                                                    {calc.canCalculate && calc.marketPrice > 0 ? (
+                                                                                        <div className="flex flex-col">
+                                                                                            <span className="text-white font-medium">{formatNumber(calc.sellCraftedValue, 5)} RLT</span>
+                                                                                            <span className="text-[10px] text-rc-muted">
+                                                                                                {formatNumber(calc.netTarget, 5)} net - {formatNumber(calc.feeCost, 3)} taxa
+                                                                                            </span>
+                                                                                            {calc.maxCraftable > 0 && <span className="text-[10px] text-purple-300 mt-1 bg-purple-500/10 px-1 py-0.5 rounded w-fit border border-purple-500/20">Total ({formatNumber(calc.maxCraftable, 0)}x): {formatNumber(calc.totalCraftedSellValue, 5)} RLT</span>}
+                                                                                        </div>
+                                                                                    ) : (
+                                                                                        <span className="text-rc-muted/40 text-xs font-normal">N/A Market Țintă</span>
+                                                                                    )}
+                                                                                </td>
+                                                                                <td className="p-3 text-center">
+                                                                                    {calc.canCalculate && calc.marketPrice > 0 ? (
+                                                                                        calc.isMergeBetter ? 
+                                                                                        <span className="inline-block bg-green-500/20 text-green-400 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-green-500/30 w-[120px] text-center shadow-sm">
+                                                                                            {calc.isCommonUntradeable ? 'Merge Obligatoriu' : 'Merge Profitabil'}
+                                                                                        </span> : 
+                                                                                        <span className="inline-block bg-orange-500/20 text-orange-400 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-orange-500/30 w-[120px] text-center shadow-sm">Vinde Brute</span>
+                                                                                    ) : <span className="text-gray-600">-</span>}
+                                                                                </td>
+                                                                                <td className="p-3 text-right">
+                                                                                    {calc.canCalculate && calc.marketPrice > 0 && !calc.isCommonUntradeable ? (
+                                                                                        <span className={`font-bold ${calc.profitDiff > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                                                            {calc.profitDiff > 0 ? '+' : ''}{formatNumber(calc.profitDiff, 5)} RLT
+                                                                                        </span>
+                                                                                    ) : <span className="text-gray-600">-</span>}
+                                                                                </td>
+                                                                            </>
+                                                                        )}
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
-                        </div>
-                    )}
+                        )}
+                        
+                    </div>
                 </div>
             );
-        };
+        }
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
