@@ -243,13 +243,30 @@
 
                 const newMiner = {
                     id: Date.now().toString(),
-                    name: formData.name,
+                    name: formData.name.trim(),
                     power: powerInGhs,
                     bonus: parseFloat(formData.bonus) || 0,
                     price: parseFloat(formData.price)
                 };
 
-                setMiners(prev => [...prev, newMiner]);
+                setMiners(prev => {
+                    // Verificăm dacă există deja un miner cu același nume
+                    const existingIndex = prev.findIndex(m => m.name.trim().toLowerCase() === newMiner.name.toLowerCase());
+                    
+                    if (existingIndex !== -1) {
+                        // Actualizează minerul existent
+                        const updatedList = [...prev];
+                        updatedList[existingIndex] = {
+                            ...updatedList[existingIndex],
+                            power: newMiner.power,
+                            bonus: newMiner.bonus,
+                            price: newMiner.price
+                        };
+                        return updatedList;
+                    }
+                    // Dacă nu există, îl adăugăm la final
+                    return [...prev, newMiner];
+                });
                 
                 // Reset form
                 setFormData({
@@ -276,14 +293,50 @@
                 
                 const newMiners = parseMarketPaste(importText);
                 if (newMiners.length > 0) {
-                    setMiners(prev => [...prev, ...newMiners]);
+                    setMiners(prev => {
+                        let updatedMiners = [...prev];
+                        let addedCount = 0;
+                        let updatedCount = 0;
+
+                        newMiners.forEach(newMiner => {
+                            // Căutăm dacă minerul importat există deja în lista curentă
+                            const existingIndex = updatedMiners.findIndex(
+                                m => m.name.trim().toLowerCase() === newMiner.name.trim().toLowerCase()
+                            );
+
+                            if (existingIndex !== -1) {
+                                // Dacă există, actualizăm datele
+                                updatedMiners[existingIndex] = {
+                                    ...updatedMiners[existingIndex],
+                                    power: newMiner.power,
+                                    bonus: newMiner.bonus,
+                                    price: newMiner.price
+                                };
+                                updatedCount++;
+                            } else {
+                                // Dacă nu există, adăugăm ca miner nou
+                                updatedMiners.push(newMiner);
+                                addedCount++;
+                            }
+                        });
+
+                        // Formăm mesajul pentru utilizator
+                        let msgs = [];
+                        if (addedCount > 0) msgs.push(`${addedCount} adăugate.`);
+                        if (updatedCount > 0) msgs.push(`${updatedCount} actualizate.`);
+                        
+                        setImportMessage({ text: `Succes: ${msgs.join(' ')}`, type: 'success' });
+                        
+                        return updatedMiners;
+                    });
+                    
                     setImportText('');
-                    setImportMessage({ text: `S-au importat cu succes ${newMiners.length} minere!`, type: 'success' });
                 } else {
                     setImportMessage({ text: 'Nu s-a putut detecta niciun miner. Asigură-te că ai copiat corect textul.', type: 'error' });
                 }
                 
-                setTimeout(() => setImportMessage({ text: '', type: '' }), 4000);
+                // Ținem mesajul pe ecran un pic mai mult (5 secunde) pentru a putea fi citit
+                setTimeout(() => setImportMessage({ text: '', type: '' }), 5000);
             };
 
             const handleSort = (key) => {
