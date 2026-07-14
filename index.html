@@ -131,29 +131,32 @@
             const lines = text.split('\n').map(l => l.trim()).filter(l => l !== '');
             const parsedMiners = [];
             let currentMiner = null;
+            let nextMinerInCollection = false; // Flag care reține statusul pentru următorul miner
 
             for (let i = 0; i < lines.length; i++) {
                 const line = lines[i];
 
-                // Detectare "In collection" pentru minerul adăugat anterior
+                // Detectare "In collection" - browserul îl pune ÎNAINTEA numelui minerului
                 if (line.toLowerCase() === 'in collection') {
-                    if (parsedMiners.length > 0) {
-                        parsedMiners[parsedMiners.length - 1].inCollection = true;
-                    }
-                    continue; // Sărim peste restul buclei pentru această linie
+                    nextMinerInCollection = true;
+                    continue;
                 }
 
                 // Căutăm linia cu Putere și Bonus (ex: "578.000 Ph/s | 65%")
                 const powerMatch = line.match(/([\d.,]+)\s*(Gh\/s|Th\/s|Ph\/s|Eh\/s)/i);
                 
                 if (powerMatch) {
-                    // Numele minerului este de obicei pe linia imediat superioară
-                    let name = i > 0 ? lines[i-1] : "Miner Necunoscut";
-                    
-                    // Evităm cazurile în care copierea a sărit numele și a luat cuvinte irelevante
-                    if (name.toLowerCase().startsWith('from') || name.toLowerCase().startsWith('quantity')) {
-                        name = "Miner fără nume " + (parsedMiners.length + 1);
+                    // Căutăm numele minerului urcând în sus, sărind peste linii irelevante
+                    let nameOffset = 1;
+                    while(i - nameOffset >= 0 && (
+                        lines[i-nameOffset].toLowerCase() === 'in collection' || 
+                        lines[i-nameOffset].toLowerCase().startsWith('from') || 
+                        lines[i-nameOffset].toLowerCase().startsWith('quantity')
+                    )) {
+                        nameOffset++;
                     }
+                    
+                    let name = i - nameOffset >= 0 ? lines[i-nameOffset] : "Miner fără nume " + (parsedMiners.length + 1);
 
                     // Extragem puterea
                     let power = parseFloat(powerMatch[1].replace(/,/g, ''));
@@ -174,7 +177,8 @@
                         name,
                         power,
                         bonus,
-                        price: 0 // Urmează să fie completat
+                        price: 0,
+                        inCollection: nextMinerInCollection // Aplicăm statusul reținut
                     };
                 }
 
@@ -187,9 +191,10 @@
                         if (currentMiner.price > 0) {
                             parsedMiners.push({
                                 id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-                                ...currentMiner,
-                                inCollection: false // Setăm fals implicit, va fi modificat dacă următoarea linie este "In collection"
+                                ...currentMiner
                             });
+                            // După ce a fost atribuit minerului corect, resetăm statusul pentru următorii
+                            nextMinerInCollection = false; 
                         }
                         // Resetăm starea pentru a căuta următorul miner din listă
                         currentMiner = null;
