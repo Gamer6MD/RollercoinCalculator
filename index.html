@@ -337,43 +337,53 @@
                 const p = parts[type];
                 let cost = 0;
                 let prevRarity = '';
-                let partsNeeded = 0;
+                let baseParts = 0;
                 let baseFee = 0;
                 let canCalculate = false;
 
-                const discountMultiplier = 1 - (getDiscountPercent(craftingLevel) / 100);
+                const discountPercent = getDiscountPercent(craftingLevel);
+                const discountMultiplier = 1 - (discountPercent / 100);
 
                 if (targetRarity === 'Uncommon') {
-                    prevRarity = 'Common'; partsNeeded = 50; baseFee = 0.005;
+                    prevRarity = 'Common'; baseParts = 50; baseFee = 0.005;
                 } else if (targetRarity === 'Rare') {
-                    prevRarity = 'Uncommon'; partsNeeded = 20; baseFee = 0.05;
+                    prevRarity = 'Uncommon'; baseParts = 20; baseFee = 0.05;
                 } else if (targetRarity === 'Epic') {
-                    prevRarity = 'Rare'; partsNeeded = 10; baseFee = 0.75;
+                    prevRarity = 'Rare'; baseParts = 10; baseFee = 0.75;
                 } else if (targetRarity === 'Legendary') {
-                    prevRarity = 'Epic'; partsNeeded = 5; baseFee = 0.75;
+                    prevRarity = 'Epic'; baseParts = 5; baseFee = 0.75;
                 }
 
+                // Aici aplicăm reducerea și la numărul de piese (rotunjit în sus, exact ca în joc. Ex: 47.5 -> 48)
+                const partsNeeded = Math.ceil(baseParts * discountMultiplier);
                 const feeCost = baseFee * discountMultiplier;
-                const prevMarketPrice = prevRarity && p[prevRarity] ? p[prevRarity] : 0;
-                const marketPrice = p[targetRarity] ? p[targetRarity] : 0;
 
-                if (prevRarity && p[prevRarity] > 0) {
-                    const partsCost = partsNeeded * p[prevRarity];
-                    cost = partsCost + feeCost;
-                    canCalculate = true;
+                const marketPrice = p[targetRarity] ? p[targetRarity] : 0;
+                const prevMarketPrice = (prevRarity && p[prevRarity]) ? p[prevRarity] : 0;
+
+                // Deducem taxa de 5% percepută de joc (calcul invers corect)
+                const netTarget = marketPrice / 1.05;
+                const netPrev = prevMarketPrice / 1.05;
+                
+                const isCommonStep = targetRarity === 'Uncommon';
+                const isCommonUntradeable = isCommonStep; 
+                const isCommonFree = isCommonStep && prevMarketPrice === 0;
+
+                if (prevRarity) {
+                    if (isCommonFree) {
+                        cost = feeCost;
+                        canCalculate = true;
+                    } else if (prevMarketPrice > 0) {
+                        cost = (partsNeeded * prevMarketPrice) + feeCost;
+                        canCalculate = true;
+                    }
                 }
 
                 const isCraftingCheaper = canCalculate && marketPrice > 0 && cost < marketPrice;
                 const savings = canCalculate && marketPrice > 0 ? (marketPrice - cost) : 0;
 
-                // Extragem prețul Net de vânzare (Deducem taxa de 5% percepută de joc)
-                const netTarget = marketPrice / 1.05;
-                const netPrev = prevMarketPrice / 1.05;
-                
-                // Varianta 1: Câți bani primim în mână dacă vindem piesele brute?
-                const sellRawValue = partsNeeded * netPrev;
-                
-                // Varianta 2: Câți bani primim în mână dacă vindem piesa craftată? (Scădem din NET și taxa de Crafting pe care am scos-o din buzunar)
+                // Dacă piesele Common sunt netranzacționabile din cutii RST, valoarea lor brută la vânzare e 0.
+                const sellRawValue = isCommonUntradeable ? 0 : (partsNeeded * netPrev);
                 const sellCraftedValue = netTarget - feeCost; 
                 
                 const isMergeProfitable = canCalculate && marketPrice > 0 && (sellCraftedValue > sellRawValue);
@@ -381,7 +391,8 @@
 
                 return { 
                     canCalculate, cost, prevRarity, partsNeeded, baseFee, feeCost, marketPrice, isCraftingCheaper, savings,
-                    netTarget, netPrev, sellRawValue, sellCraftedValue, isMergeProfitable, sellProfitDiff
+                    netTarget, netPrev, sellRawValue, sellCraftedValue, isMergeProfitable, sellProfitDiff,
+                    isCommonUntradeable, isCommonFree
                 };
             };
 
@@ -677,7 +688,10 @@
                                                                                     <div className="flex flex-col">
                                                                                         <span className="text-white font-medium">{formatNumber(calc.cost)} RLT</span>
                                                                                         <span className="text-[10px] text-rc-muted">
-                                                                                            {calc.partsNeeded}x {calc.prevRarity} + {formatNumber(calc.feeCost)} (Taxă)
+                                                                                            {calc.isCommonFree ? 
+                                                                                                `Gratis (Din RST) + ${formatNumber(calc.feeCost)} (Taxă)` : 
+                                                                                                `${calc.partsNeeded}x ${calc.prevRarity} + ${formatNumber(calc.feeCost)} (Taxă)`
+                                                                                            }
                                                                                         </span>
                                                                                     </div>
                                                                                 ) : (
@@ -702,7 +716,9 @@
                                                                     ) : (
                                                                         <>
                                                                             <td className="p-3 text-white font-medium">
-                                                                                {calc.canCalculate && calc.netPrev > 0 ? (
+                                                                                {calc.isCommonUntradeable ? (
+                                                                                    <span className="text-rc-muted/60 text-[11px] font-medium italic">Nu pot fi vândute</span>
+                                                                                ) : calc.canCalculate && calc.netPrev > 0 ? (
                                                                                     <div className="flex flex-col">
                                                                                         <span>{formatNumber(calc.sellRawValue)} RLT</span>
                                                                                         <span className="text-[10px] text-rc-muted">Din {calc.partsNeeded}x la {formatNumber(calc.netPrev)} net/buc</span>
@@ -723,9 +739,15 @@
                                                                             </td>
                                                                             <td className="p-3 text-center">
                                                                                 {calc.canCalculate && calc.marketPrice > 0 ? (
-                                                                                    calc.isMergeProfitable ? 
-                                                                                    <span className="inline-block bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-purple-500/30 w-[100px] text-center shadow-sm">Merge & Vinde</span> : 
-                                                                                    <span className="inline-block bg-blue-500/20 text-blue-400 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-blue-500/30 w-[100px] text-center shadow-sm">Vinde Brute</span>
+                                                                                    calc.isCommonUntradeable ? (
+                                                                                        calc.sellCraftedValue > 0 ?
+                                                                                        <span className="inline-block bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-purple-500/30 w-[110px] text-center shadow-sm">Merge Obligatoriu</span> :
+                                                                                        <span className="inline-block bg-gray-500/20 text-gray-400 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-gray-500/30 w-[110px] text-center shadow-sm">Ne rentabil</span>
+                                                                                    ) : (
+                                                                                        calc.isMergeProfitable ? 
+                                                                                        <span className="inline-block bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-purple-500/30 w-[110px] text-center shadow-sm">Merge & Vinde</span> : 
+                                                                                        <span className="inline-block bg-blue-500/20 text-blue-400 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-blue-500/30 w-[110px] text-center shadow-sm">Vinde Brute</span>
+                                                                                    )
                                                                                 ) : <span className="text-gray-600">-</span>}
                                                                             </td>
                                                                             <td className="p-3 text-right">
