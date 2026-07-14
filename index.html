@@ -90,7 +90,7 @@
         };
 
         const formatNumber = (num) => {
-            return new Intl.NumberFormat('ro-RO', { maximumFractionDigits: 4 }).format(num);
+            return new Intl.NumberFormat('ro-RO', { maximumFractionDigits: 5 }).format(num);
         };
 
         const calculateMetrics = (miner) => {
@@ -224,6 +224,7 @@
             });
             const [partsImportText, setPartsImportText] = useState('');
             const [partsImportMsg, setPartsImportMsg] = useState('');
+            const [partsMode, setPartsMode] = useState('buy'); // 'buy' sau 'sell'
 
             useEffect(() => { localStorage.setItem('rc_miners', JSON.stringify(miners)); }, [miners]);
             useEffect(() => { localStorage.setItem('rc_parts', JSON.stringify(parts)); }, [parts]);
@@ -352,18 +353,36 @@
                     prevRarity = 'Epic'; partsNeeded = 5; baseFee = 0.75;
                 }
 
+                const feeCost = baseFee * discountMultiplier;
+                const prevMarketPrice = prevRarity && p[prevRarity] ? p[prevRarity] : 0;
+                const marketPrice = p[targetRarity] ? p[targetRarity] : 0;
+
                 if (prevRarity && p[prevRarity] > 0) {
                     const partsCost = partsNeeded * p[prevRarity];
-                    const feeCost = baseFee * discountMultiplier;
                     cost = partsCost + feeCost;
                     canCalculate = true;
                 }
 
-                const marketPrice = p[targetRarity];
                 const isCraftingCheaper = canCalculate && marketPrice > 0 && cost < marketPrice;
                 const savings = canCalculate && marketPrice > 0 ? (marketPrice - cost) : 0;
 
-                return { canCalculate, cost, prevRarity, partsNeeded, baseFee, marketPrice, isCraftingCheaper, savings };
+                // Extragem prețul Net de vânzare (Deducem taxa de 5% percepută de joc)
+                const netTarget = marketPrice / 1.05;
+                const netPrev = prevMarketPrice / 1.05;
+                
+                // Varianta 1: Câți bani primim în mână dacă vindem piesele brute?
+                const sellRawValue = partsNeeded * netPrev;
+                
+                // Varianta 2: Câți bani primim în mână dacă vindem piesa craftată? (Scădem din NET și taxa de Crafting pe care am scos-o din buzunar)
+                const sellCraftedValue = netTarget - feeCost; 
+                
+                const isMergeProfitable = canCalculate && marketPrice > 0 && (sellCraftedValue > sellRawValue);
+                const sellProfitDiff = (canCalculate && marketPrice > 0) ? (sellCraftedValue - sellRawValue) : 0;
+
+                return { 
+                    canCalculate, cost, prevRarity, partsNeeded, baseFee, feeCost, marketPrice, isCraftingCheaper, savings,
+                    netTarget, netPrev, sellRawValue, sellCraftedValue, isMergeProfitable, sellProfitDiff
+                };
             };
 
             const handleSort = (key) => {
@@ -564,9 +583,18 @@
                             
                             <div className="lg:col-span-1 space-y-4">
                                 <div className="glass-panel p-6 rounded-xl shadow-xl border-t-4 border-t-purple-500">
-                                    <h2 className="text-lg font-semibold text-white mb-4"><i className="fa-solid fa-gear mr-2 text-purple-400"></i>Setări Crafting</h2>
+                                    <h2 className="text-lg font-semibold text-white mb-4"><i className="fa-solid fa-gear mr-2 text-purple-400"></i>Setări Analiză Piese</h2>
                                     
-                                    <label className="block text-xs font-medium text-rc-muted mb-2">Nivelul Tău de Reducere</label>
+                                    <div className="mb-6 flex bg-rc-dark/50 p-1 rounded-lg border border-white/10 w-full shadow-inner">
+                                        <button onClick={() => setPartsMode('buy')} className={`flex-1 px-2 py-2 rounded-md text-[11px] font-bold tracking-wide uppercase transition-colors ${partsMode === 'buy' ? 'bg-purple-600 text-white shadow' : 'text-rc-muted hover:text-white hover:bg-white/5'}`}>
+                                            <i className="fa-solid fa-cart-shopping mr-1.5"></i>Vreau să Obțin
+                                        </button>
+                                        <button onClick={() => setPartsMode('sell')} className={`flex-1 px-2 py-2 rounded-md text-[11px] font-bold tracking-wide uppercase transition-colors ${partsMode === 'sell' ? 'bg-green-600 text-white shadow' : 'text-rc-muted hover:text-white hover:bg-white/5'}`}>
+                                            <i className="fa-solid fa-coins mr-1.5"></i>Vreau să Vând
+                                        </button>
+                                    </div>
+
+                                    <label className="block text-xs font-medium text-rc-muted mb-2">Nivelul Tău de Reducere (Merge)</label>
                                     <select value={craftingLevel} onChange={(e) => setCraftingLevel(parseInt(e.target.value))} className="input-field w-full rounded-lg px-3 py-2 text-sm mb-4 font-medium">
                                         <option value={1}>Nivel 1 (0% Reducere)</option>
                                         <option value={2}>Nivel 2 (5% Reducere)</option>
@@ -594,15 +622,14 @@
                                     </form>
                                 </div>
                                 <div className="glass-panel p-4 rounded-xl text-xs text-rc-muted leading-relaxed">
-                                    <p><strong>De reținut:</strong></p>
-                                    <p className="mt-1">Pentru a calcula o piesă (ex: Epic Wire), calculatorul are nevoie de prețul piesei inferioare (Rare Wire) și de prețul actual al piesei Epic pentru a compara dacă ieși pe <span className="text-green-400 font-bold">plus</span>.</p>
+                                    <p><strong>Info Mod Vânzare:</strong> Calculatorul deduce automat taxa pieței (5%) folosind formula inteligentă <code>Preț / 1.05</code> pentru a afla profitul tău net real.</p>
                                 </div>
                             </div>
 
                             <div className="lg:col-span-3">
                                 <div className="glass-panel rounded-xl shadow-xl overflow-hidden flex flex-col h-full">
                                     <div className="p-4 border-b border-white/10 bg-rc-panel/30">
-                                        <h2 className="text-lg font-semibold text-white"><i className="fa-solid fa-code-merge mr-2 text-purple-400"></i>Analiză Detaliată: Cumpără vs. Craftează</h2>
+                                        <h2 className="text-lg font-semibold text-white"><i className="fa-solid fa-code-merge mr-2 text-purple-400"></i>{partsMode === 'buy' ? 'Decizie Achiziție: Cumpără de pe Market vs. Craftează singur' : 'Decizie Vânzare (Din cutii): Vinde piese brute vs. Fă Merge & Vinde'}</h2>
                                     </div>
                                     <div className="overflow-x-auto p-4 space-y-6">
                                         {['Wire', 'Fan', 'Hashboard'].map(partType => (
@@ -617,10 +644,21 @@
                                                     <thead>
                                                         <tr className="text-[10px] uppercase tracking-wider text-rc-muted border-b border-white/5 bg-black/40">
                                                             <th className="p-3 font-medium">Țintă (Raritate)</th>
-                                                            <th className="p-3 font-medium">Preț Market (Dacă cumperi)</th>
-                                                            <th className="p-3 font-medium">Cost Crafting (Piese + Fee)</th>
-                                                            <th className="p-3 font-medium text-center">Decizie Optimală</th>
-                                                            <th className="p-3 font-medium text-right">Economisești (RLT)</th>
+                                                            {partsMode === 'buy' ? (
+                                                                <>
+                                                                    <th className="p-3 font-medium">Preț Market (Dacă cumperi)</th>
+                                                                    <th className="p-3 font-medium">Cost Crafting (Piese + Fee)</th>
+                                                                    <th className="p-3 font-medium text-center">Decizie Optimală</th>
+                                                                    <th className="p-3 font-medium text-right">Economisești (RLT)</th>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <th className="p-3 font-medium text-blue-300">Venit Vinde Brute (Net)</th>
+                                                                    <th className="p-3 font-medium text-purple-300">Venit Merge & Vinde (Net)</th>
+                                                                    <th className="p-3 font-medium text-center">Decizie Optimală</th>
+                                                                    <th className="p-3 font-medium text-right">Diferență Profit</th>
+                                                                </>
+                                                            )}
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-white/5 text-sm">
@@ -629,35 +667,76 @@
                                                             return (
                                                                 <tr key={rarity} className="hover:bg-white/5 transition-colors">
                                                                     <td className={`p-3 font-bold ${renderPartColor(rarity)}`}>{rarity}</td>
-                                                                    <td className="p-3 text-white font-medium">
-                                                                        {calc.marketPrice > 0 ? `${formatNumber(calc.marketPrice)} RLT` : <span className="text-rc-muted/40 text-xs font-normal">N/A Market</span>}
-                                                                    </td>
-                                                                    <td className="p-3">
-                                                                        {calc.canCalculate ? (
-                                                                            <div className="flex flex-col">
-                                                                                <span className="text-white font-medium">{formatNumber(calc.cost)} RLT</span>
-                                                                                <span className="text-[10px] text-rc-muted">
-                                                                                    {calc.partsNeeded}x {calc.prevRarity} + {formatNumber(calc.baseFee * (1 - getDiscountPercent(craftingLevel)/100))} (Taxă)
-                                                                                </span>
-                                                                            </div>
-                                                                        ) : (
-                                                                            <span className="text-rc-muted/40 text-xs font-normal">Lipsă piese {calc.prevRarity}</span>
-                                                                        )}
-                                                                    </td>
-                                                                    <td className="p-3 text-center">
-                                                                        {calc.canCalculate ? (
-                                                                            calc.isCraftingCheaper ? 
-                                                                            <span className="inline-block bg-green-500/20 text-green-400 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-green-500/30 w-[100px] text-center shadow-sm">Craft</span> : 
-                                                                            <span className="inline-block bg-red-500/20 text-red-400 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-red-500/30 w-[100px] text-center shadow-sm">Buy Market</span>
-                                                                        ) : <span className="text-gray-600">-</span>}
-                                                                    </td>
-                                                                    <td className="p-3 text-right">
-                                                                        {calc.canCalculate ? (
-                                                                            <span className={`font-bold ${calc.savings > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                                                {calc.savings > 0 ? '+' : ''}{formatNumber(calc.savings)} RLT
-                                                                            </span>
-                                                                        ) : <span className="text-gray-600">-</span>}
-                                                                    </td>
+                                                                    {partsMode === 'buy' ? (
+                                                                        <>
+                                                                            <td className="p-3 text-white font-medium">
+                                                                                {calc.marketPrice > 0 ? `${formatNumber(calc.marketPrice)} RLT` : <span className="text-rc-muted/40 text-xs font-normal">N/A Market</span>}
+                                                                            </td>
+                                                                            <td className="p-3">
+                                                                                {calc.canCalculate ? (
+                                                                                    <div className="flex flex-col">
+                                                                                        <span className="text-white font-medium">{formatNumber(calc.cost)} RLT</span>
+                                                                                        <span className="text-[10px] text-rc-muted">
+                                                                                            {calc.partsNeeded}x {calc.prevRarity} + {formatNumber(calc.feeCost)} (Taxă)
+                                                                                        </span>
+                                                                                    </div>
+                                                                                ) : (
+                                                                                    <span className="text-rc-muted/40 text-xs font-normal">Lipsă piese {calc.prevRarity}</span>
+                                                                                )}
+                                                                            </td>
+                                                                            <td className="p-3 text-center">
+                                                                                {calc.canCalculate && calc.marketPrice > 0 ? (
+                                                                                    calc.isCraftingCheaper ? 
+                                                                                    <span className="inline-block bg-green-500/20 text-green-400 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-green-500/30 w-[100px] text-center shadow-sm">Craft</span> : 
+                                                                                    <span className="inline-block bg-red-500/20 text-red-400 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-red-500/30 w-[100px] text-center shadow-sm">Buy Market</span>
+                                                                                ) : <span className="text-gray-600">-</span>}
+                                                                            </td>
+                                                                            <td className="p-3 text-right">
+                                                                                {calc.canCalculate && calc.marketPrice > 0 ? (
+                                                                                    <span className={`font-bold ${calc.savings > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                                                        {calc.savings > 0 ? '+' : ''}{formatNumber(calc.savings)} RLT
+                                                                                    </span>
+                                                                                ) : <span className="text-gray-600">-</span>}
+                                                                            </td>
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <td className="p-3 text-white font-medium">
+                                                                                {calc.canCalculate && calc.netPrev > 0 ? (
+                                                                                    <div className="flex flex-col">
+                                                                                        <span>{formatNumber(calc.sellRawValue)} RLT</span>
+                                                                                        <span className="text-[10px] text-rc-muted">Din {calc.partsNeeded}x la {formatNumber(calc.netPrev)} net/buc</span>
+                                                                                    </div>
+                                                                                ) : <span className="text-rc-muted/40 text-xs font-normal">N/A Piese brute</span>}
+                                                                            </td>
+                                                                            <td className="p-3">
+                                                                                {calc.canCalculate && calc.marketPrice > 0 ? (
+                                                                                    <div className="flex flex-col">
+                                                                                        <span className="text-white font-medium">{formatNumber(calc.sellCraftedValue)} RLT</span>
+                                                                                        <span className="text-[10px] text-rc-muted">
+                                                                                            {formatNumber(calc.netTarget)} net - {formatNumber(calc.feeCost)} taxa merge
+                                                                                        </span>
+                                                                                    </div>
+                                                                                ) : (
+                                                                                    <span className="text-rc-muted/40 text-xs font-normal">N/A Market Țintă</span>
+                                                                                )}
+                                                                            </td>
+                                                                            <td className="p-3 text-center">
+                                                                                {calc.canCalculate && calc.marketPrice > 0 ? (
+                                                                                    calc.isMergeProfitable ? 
+                                                                                    <span className="inline-block bg-purple-500/20 text-purple-400 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-purple-500/30 w-[100px] text-center shadow-sm">Merge & Vinde</span> : 
+                                                                                    <span className="inline-block bg-blue-500/20 text-blue-400 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-blue-500/30 w-[100px] text-center shadow-sm">Vinde Brute</span>
+                                                                                ) : <span className="text-gray-600">-</span>}
+                                                                            </td>
+                                                                            <td className="p-3 text-right">
+                                                                                {calc.canCalculate && calc.marketPrice > 0 ? (
+                                                                                    <span className={`font-bold ${calc.sellProfitDiff > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                                                        {calc.sellProfitDiff > 0 ? '+' : ''}{formatNumber(calc.sellProfitDiff)} RLT
+                                                                                    </span>
+                                                                                ) : <span className="text-gray-600">-</span>}
+                                                                            </td>
+                                                                        </>
+                                                                    )}
                                                                 </tr>
                                                             );
                                                         })}
